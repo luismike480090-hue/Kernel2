@@ -1,0 +1,1784 @@
+<6>[    0.000000] Initializing cgroup subsys cpuset
+<6>[    0.000000] Initializing cgroup subsys cpu
+<5>[    0.000000] Linux version 3.0.8-g883717a-dirty (android_11@MBB-Tablet-Server) (gcc version 4.6.x-google 20120106 (prerelease) (GCC) ) #1 SMP PREEMPT Fri Feb 28 11:41:12 CST 2014
+<4>[    0.000000] CPU: ARMv7 Processor [413fc090] revision 0 (ARMv7), cr=10c5387f
+<4>[    0.000000] CPU: VIPT nonaliasing data cache, VIPT aliasing instruction cache
+<4>[    0.000000] Machine: k3v2oem1
+<6>[    0.000000] k3v2_mem_setup
+<6>[    0.000000] k3v2_mem = 524256K@0x20000000
+<6>[    0.000000] early_k3v2_mem start 0x20000000 size 0x0
+<6>[    0.000000] [bdid]boardid = 0x0.
+<6>[    0.000000] board_id_ext = 0x14.
+<4>[    0.000000] power down charge p:0, pd_charge_flag :0
+<4>[    0.000000] enter recovery p:0, enter_recovery_flag :0
+<4>[    0.000000] runmode is normal, runmode_factory = 0
+<6>[    0.000000] hpm_value = 67.
+<4>[    0.000000] resetmode is ColdReset,, resetmode_normal = 0
+<6>[    0.000000] cpu_maxfreq = 0.
+<4>[    0.000000] Memory policy: ECC disabled, Data cache writeback
+<4>[    0.000000] k3v2oem1 map io
+<7>[    0.000000] On node 0 totalpages: 184064
+<7>[    0.000000] free_area_init_node: node 0, pgdat c07efdc0, node_mem_map c102c000
+<7>[    0.000000]   Normal zone: 960 pages used for memmap
+<7>[    0.000000]   Normal zone: 0 pages reserved
+<7>[    0.000000]   Normal zone: 121920 pages, LIFO batch:31
+<7>[    0.000000]   HighMem zone: 478 pages used for memmap
+<7>[    0.000000]   HighMem zone: 60706 pages, LIFO batch:15
+<6>[    0.000000] PERCPU: Embedded 7 pages/cpu @c15d2000 s5216 r8192 d15264 u32768
+<7>[    0.000000] pcpu-alloc: s5216 r8192 d15264 u32768 alloc=8*4096
+<7>[    0.000000] pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+<4>[    0.000000] Built 1 zonelists in Zone order, mobility grouping on.  Total pages: 182626
+<5>[    0.000000] Kernel command line: k3v2_mem=524256K@0x20000000 console=ttyAMA0,115200 k3v2_pmem=1 vmalloc=512M androidboot.hardware=hwt101 mtdparts=hisi_nand:1G@714M(system),256M@1738M(cache),512M@1994M(cust),512M@2506M(cust2),5174M@3018M(userdata),32M@168M(nvme2),32M@200M(nvme),16M@618M(recovery),4M@520M(misc),8M@512M(xloader),4M@4M(efi),4M@0M(fastboot),16M@232M(boot),32M@532M(oeminfo) boardid=0x36200110,0x00000025,0x00000000  hw_version=0x00000014 pd_charge=0 enter_recovery=0 androidboot.swtype=normal fastboot_version= hpm_value=67 normal_reset_type=ColdReset,  cpu_maxfreq= androidboot.carrier=MH1MS1211M014-3G androidboot.serialno=0123456789ABCDEF androidboot.boardtype=3G 
+<4>[    0.000000] pmem allocating 160497664 bytes at (2d000000 physical) for gpu pmem area
+<4>[    0.000000] codec pmem allocating 28311552 bytes at (36910000 physical) for codec pcodec area
+<4>[    0.000000] camera pmem allocating 4096 bytes at (38410000 physical) for camera pic
+<4>[    0.000000] camera pmem allocating 58720256 bytes at (38411000 physical) for gralloc pmem area
+<4>[    0.000000] overlay pmem allocating 67108864 bytes at (3bc11000 physical) for overlay pmem area
+<4>[    0.000000] dumplog pmem allocating 2097152 bytes at (3fc11000 physical) for dumplogarea
+<6>[    0.000000] PID hash table entries: 2048 (order: 1, 8192 bytes)
+<6>[    0.000000] Dentry cache hash table entries: 65536 (order: 6, 262144 bytes)
+<6>[    0.000000] Inode-cache hash table entries: 32768 (order: 5, 131072 bytes)
+<6>[    0.000000] Memory: 719MB = 719MB total
+<5>[    0.000000] Memory: 719004k/719004k available, 17252k reserved, 244736K highmem
+<5>[    0.000000] Virtual kernel memory layout:
+<5>[    0.000000]     vector  : 0xffff0000 - 0xffff1000   (   4 kB)
+<5>[    0.000000]     fixmap  : 0xfff00000 - 0xfffe0000   ( 896 kB)
+<5>[    0.000000]     DMA     : 0xffc00000 - 0xffe00000   (   2 MB)
+<5>[    0.000000]     vmalloc : 0xde800000 - 0xfe000000   ( 504 MB)
+<5>[    0.000000]     lowmem  : 0xc0000000 - 0xde000000   ( 480 MB)
+<5>[    0.000000]     pkmap   : 0xbfe00000 - 0xc0000000   (   2 MB)
+<5>[    0.000000]     modules : 0xbf000000 - 0xbfe00000   (  14 MB)
+<5>[    0.000000]       .init : 0xc0008000 - 0xc003c000   ( 208 kB)
+<5>[    0.000000]       .text : 0xc003c000 - 0xc07cb000   (7740 kB)
+<5>[    0.000000]       .data : 0xc07cc000 - 0xc07f08c0   ( 147 kB)
+<5>[    0.000000]        .bss : 0xc085bc44 - 0xc0a80e80   (2197 kB)
+<6>[    0.000000] SLUB: Genslabs=13, HWalign=32, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+<6>[    0.000000] Preemptible hierarchical RCU implementation.
+<6>[    0.000000] NR_IRQS:360 nr_irqs:360 360
+<6>[    0.000104] Calibrating delay loop... 826.16 BogoMIPS (lpj=1376256)
+<6>[    0.023392] pid_max: default: 32768 minimum: 301
+<6>[    0.023902] Mount-cache hash table entries: 512
+<6>[    0.025285] Initializing cgroup subsys cpuacct
+<6>[    0.025393] Initializing cgroup subsys devices
+<6>[    0.025421] Initializing cgroup subsys freezer
+<6>[    0.025515] CPU: Testing write buffer coherency: ok
+<6>[    0.025874] local timer setup already set in cpu0
+<4>[    0.025978] poke_milo addr 0xfe2a2314 at 0x5d1f14
+<6>[    0.026107] L310 cache controller enabled
+<6>[    0.026142] l2x0: 16 ways, CACHE_ID 0x410000c8, AUX_CTRL 0x3e070000, Cache size: 1048576 B
+<4>[    0.057030] CPU1: Booted secondary processor
+<6>[    0.083348] k3v2 irqaffinity irq 36 register irq to cpu 1
+<2>[    0.083396] CPU1: Unknown IPI message 0x1
+<4>[    0.097038] CPU2: Booted secondary processor
+<6>[    0.097090] k3v2 irqaffinity irq 37 register irq to cpu 2
+<2>[    0.097133] CPU2: Unknown IPI message 0x1
+<4>[    0.110374] CPU3: Booted secondary processor
+<6>[    0.110424] k3v2 irqaffinity irq 38 register irq to cpu 3
+<6>[    0.110459] Brought up 4 CPUs
+<2>[    0.110476] CPU3: Unknown IPI message 0x1
+<6>[    0.110504] SMP: Total of 4 processors activated (3315.16 BogoMIPS).
+<6>[    0.122300] k3log_init set hilog_loaded = 1
+<6>[    0.122745] k3 log probed
+<6>[    0.123184] k3 log init ok
+<6>[    0.125635] print_constraints: dummy: 
+<6>[    0.126295] NET: Registered protocol family 16
+<6>[    0.129122] VFP support v0.3: implementor 41 architecture 3 part 30 variant 9 rev 4
+<6>[    0.139397] print_constraints: LDO0: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.139932] print_constraints: LDO1: 1700 <--> 2000 mV at 1800 mV normal idle 
+<6>[    0.140760] print_constraints: LDO2: 1050 <--> 1400 mV at 1150 mV normal idle 
+<6>[    0.141317] print_constraints: LDO3: 1050 <--> 1400 mV at 1200 mV normal idle 
+<6>[    0.141853] print_constraints: LDO4: 1500 <--> 3000 mV at 2500 mV normal idle 
+<6>[    0.142701] print_constraints: LDO5: 1500 <--> 3000 mV at 1800 mV normal idle 
+<6>[    0.143526] print_constraints: LDO6: 1500 <--> 3000 mV at 2600 mV normal idle 
+<6>[    0.144087] print_constraints: LDO7: 1500 <--> 3000 mV at 2600 mV normal idle 
+<6>[    0.144624] print_constraints: LDO8: 1500 <--> 3300 mV at 3300 mV normal idle 
+<6>[    0.145158] print_constraints: LDO9: 1500 <--> 3000 mV at 2600 mV normal idle 
+<6>[    0.145692] print_constraints: LDO10: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.146245] print_constraints: LDO11: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.146889] print_constraints: LDO12: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.147445] print_constraints: LDO13: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.147995] print_constraints: LDO14: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.148557] print_constraints: LDO15: 1500 <--> 3300 mV at 2600 mV normal idle 
+<6>[    0.149150] print_constraints: LDO16: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.149706] print_constraints: LDO17: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.150474] print_constraints: LDO18: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.151029] print_constraints: LDO19: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.151621] print_constraints: LDO20: 1500 <--> 3000 mV at 2850 mV normal idle 
+<6>[    0.152192] print_constraints: LDO_AUDIO: 2800 <--> 3300 mV at 3300 mV normal idle 
+<6>[    0.152766] print_constraints: BUCK0: 700 <--> 1600 mV at 1103 mV normal idle 
+<6>[    0.153386] print_constraints: BUCK1: 700 <--> 1600 mV at 1004 mV normal idle 
+<6>[    0.153978] print_constraints: BUCK2: 700 <--> 1600 mV at 1103 mV normal idle 
+<6>[    0.154561] print_constraints: BUCK3: 700 <--> 1200 mV at 1100 mV normal idle 
+<6>[    0.155144] print_constraints: BUCK4: 1150 <--> 2000 mV at 1200 mV normal idle 
+<6>[    0.156030] print_constraints: BUCK5: 1150 <--> 1900 mV at 1800 mV normal idle 
+<6>[    0.156592] print_constraints: USB_CHG_PUMP: 
+<6>[    0.157115] print_constraints: HDMI_CHG_PUMP: 
+<6>[    0.157960] print_constraints: VCC_EDC1: 
+<6>[    0.158452] print_constraints: VCC_ISP: 
+<6>[    0.158939] print_constraints: VCC_VENC: 
+<6>[    0.159423] print_constraints: VCC_VDEC: 
+<6>[    0.159967] print_constraints: VCC_BT: 
+<6>[    0.160501] print_constraints: VCC_CPU2: 
+<6>[    0.161005] print_constraints: VCC_CPU3: 
+<6>[    0.161485] print_constraints: VCC_G3D: 
+<4>[    0.169752] k3v2oem1_init 1621: st_wk_lock init
+<6>[    0.179812] Serial: AMBA PL011 UART driver
+<6>[    0.180098] amba-uart.0: ttyAMA0 at MMIO 0xfcb00000 (irq = 52) is a PL011 rev2
+<6>[    0.192472] console [ttyAMA0] enabled
+<6>[    0.193124] amba-uart.1: ttyAMA1 at MMIO 0xfcb01000 (irq = 53) is a PL011 rev2
+<6>[    0.194151] amba-uart.2: ttyAMA2 at MMIO 0xfcb02000 (irq = 54) is a PL011 rev2
+<6>[    0.194858] amba-uart.3: ttyAMA3 at MMIO 0xfcb03000 (irq = 55) is a PL011 rev2
+<6>[    0.195539] amba-uart.4: ttyAMA4 at MMIO 0xfcb04000 (irq = 56) is a PL011 rev2
+<6>[    0.196560] k3v2 irqaffinity irq 60 register irq to cpu 1
+<6>[    0.199036] i2c_designware dw-i2c.0: i2c_dw_dma_probe
+<6>[    0.199283] k3v2 irqaffinity irq 61 register irq to cpu 1
+<3>[    0.200100] i2c i2c-1: Invalid 7-bit I2C address 0x00
+<3>[    0.200210] i2c i2c-1: Can't create device at 0x00
+<6>[    0.202833] i2c_designware dw-i2c.1: i2c_dw_dma_probe
+<6>[    0.203082] k3v2 irqaffinity irq 94 register irq to cpu 1
+<6>[    0.204200] i2c_designware dw-i2c.2: i2c_dw_dma_probe
+<6>[    0.204440] k3v2 irqaffinity irq 95 register irq to cpu 1
+<6>[    0.204911] i2c_designware dw-i2c.3: i2c_dw_dma_probe
+<6>[    0.205460] k3adc hkadc: attached adc driver
+<6>[    0.299351] bio: create slab <bio-0> at 0
+<6>[    0.311285] hidmav300 hidmav300: k3dmacv300 Controller ( cpy slave ), 27 channels
+<5>[    0.323309] SCSI subsystem initialized
+<6>[    0.324059] usbcore: registered new interface driver usbfs
+<6>[    0.324687] usbcore: registered new interface driver hub
+<6>[    0.325142] usbcore: registered new device driver usb
+<6>[    0.328095] Advanced Linux Sound Architecture Driver Version 1.0.24.
+<6>[    0.330475] Switching to clocksource free-run-timer
+<5>[    0.330984] FS-Cache: Loaded
+<6>[    0.331428] CacheFiles: Loaded
+<6>[    0.333401] Switched to NOHz mode on CPU #0
+<6>[    0.333494] Switched to NOHz mode on CPU #1
+<6>[    0.333836] Switched to NOHz mode on CPU #3
+<6>[    0.333930] Switched to NOHz mode on CPU #2
+<6>[    0.335967] NET: Registered protocol family 2
+<6>[    0.336452] IP route cache hash table entries: 16384 (order: 4, 65536 bytes)
+<6>[    0.337937] TCP established hash table entries: 65536 (order: 7, 524288 bytes)
+<6>[    0.339921] TCP bind hash table entries: 65536 (order: 7, 786432 bytes)
+<6>[    0.342076] TCP: Hash tables configured (established 65536 bind 65536)
+<6>[    0.342209] TCP reno registered
+<6>[    0.342290] UDP hash table entries: 256 (order: 1, 8192 bytes)
+<6>[    0.342436] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes)
+<6>[    0.343231] NET: Registered protocol family 1
+<6>[    0.343630] Trying to unpack rootfs image as initramfs...
+<6>[    0.368944] Freeing initrd memory: 172K
+<6>[    0.369035] k3v2 irqaffinity init
+<5>[    0.369135] [PM]hi_cpu_godpsleep_ddrbase =0xdd818000
+<5>[    0.369231] .hi_cpu_godpsleep_phybase=0x1d818000.
+<6>[    0.369781] ipps-v2 ipps-v2.0: set max cpufreq 1.2G according to NV
+<6>[    0.369920] ipps-v2 ipps-v2.0: trim voltage offset: 14mv
+<6>[    0.370038] [lowpmreg_init] 1797 enter.
+<6>[    0.370126] ipps-v2 ipps-v2.0: DDR type:f0790611
+<6>[    0.371004] [lowpm_test_probe] 1680 enter.
+<6>[    0.371320] [lowpm_test_probe] 1726 leave.
+<6>[    0.371471] [lowpmreg_init] 1811 leave.
+<4>[    0.371601] TI WL18XX: k3v2_wifi_init 
+<6>[    0.372576] mu739_power: mu739_netlink_init, netlink_kernel_create success ;
+<3>[    0.381975] [k3v2_cpu_init] 1254 cpu=1
+<3>[    0.382725] [k3v2_cpu_init] 1254 cpu=2
+<3>[    0.383449] [k3v2_cpu_init] 1254 cpu=3
+<4>[    0.384285] highmem bounce pool size: 64 pages
+<6>[    0.384793] ashmem: initialized
+<6>[    0.410032] NTFS driver 2.1.30 [Flags: R/W DEBUG].
+<6>[    0.411204] fuse init (API version 7.16)
+<4>[    0.412113] lby init_yaffs_fs
+<7>[    0.412183] yaffs: yaffs built Feb 28 2014 11:41:04 Installing.
+<6>[    0.412359] msgmni has been set to 926
+<6>[    0.414300] io scheduler noop registered
+<6>[    0.414390] io scheduler deadline registered
+<6>[    0.414621] io scheduler cfq registered (default)
+<4>[    0.415377] ==sn65dsi83_init==
+<4>[    0.415518] ==sn65dsi83_probe in , pdata->en_gpio = 79 =
+<6>[    0.454116] ==probe over , pdata->en_gpio = 79 =
+<4>[    0.454560] ret=0
+<4>[    0.456610] ==ouyangxun toshiba_probe
+<4>[    0.467397] ==ouyangxun mipi_dsi_probe 
+<4>[    0.467511] ==ouyangxun mipi_dsi_probe,ldi_dev = dd018600, ldi_dev->dev.platform_data = dda09700
+<4>[    0.468053] ==ouyangxun ldi_probe 
+<4>[    0.468166] ==ouyangxun ldi_probe,pdev = dd018600,k3_fb = dd018800, k3_fb_dev->dev.platform_data = dda09640
+<6>[    0.470119] k3v2 irqaffinity irq 70 register irq to cpu 1
+<6>[    0.470257] k3v2 irqaffinity irq 71 register irq to cpu 1
+<4>[    0.470565] ==ouyangxun mipi_toshiba_panel_set_fastboot enter 
+<4>[    0.470685]   
+<7>[    0.471189] Registered led device: lcd_backlight0
+<4>[    0.471315] ==ouyangxun toshiba_probe over
+<5>[    0.473131] hdmi-hw[I]:hw_support_mhl:2214: this device don't support mhl.
+<5>[    0.473375] hdmi-hw[I]:hw_get_resources:2105: base core: 0xfe09a000
+<6>[    0.473551] hw_res.irq_resume = 201
+<5>[    0.473994] hdmi-hw[I]:hw_support_mhl:2214: this device don't support mhl.
+<5>[    0.474174] hdmi-hw[I]:hw_support_mhl:2214: this device don't support mhl.
+<5>[    0.474313] hdmi-hw[I]:hw_support_mhl:2214: this device don't support mhl.
+<4>[    0.474872] ==ouyangxun ldi_probe 
+<4>[    0.474983] ==ouyangxun ldi_probe,pdev = dd019600,k3_fb = dd019800, k3_fb_dev->dev.platform_data = dda09900
+<6>[    0.476008] k3v2 irqaffinity irq 73 register irq to cpu 1
+<6>[    0.476145] k3v2 irqaffinity irq 74 register irq to cpu 1
+<6>[    0.479838] uart-pl011 amba-uart.0: no DMA platform data
+<6>[    0.479982] uart-pl011 amba-uart.1: DMA channel TX dma0chan3
+<6>[    0.480115] uart-pl011 amba-uart.1: DMA channel RX dma0chan2
+<6>[    0.480249] uart-pl011 amba-uart.2: DMA channel TX dma0chan5
+<6>[    0.480379] uart-pl011 amba-uart.2: DMA channel RX dma0chan4
+<6>[    0.480510] uart-pl011 amba-uart.3: DMA channel TX dma0chan7
+<6>[    0.480653] uart-pl011 amba-uart.3: DMA channel RX dma0chan6
+<6>[    0.480832] uart-pl011 amba-uart.4: DMA channel TX dma0chan9
+<6>[    0.480966] uart-pl011 amba-uart.4: DMA channel RX dma0chan8
+<4>[    0.481195] k3v2 seceng_init++
+<4>[    0.481356] k3v2 seceng probe
+<4>[    0.481451] k3v2 seceng setup
+<6>[    0.482158] Registered character driver
+<4>[    0.482532] k3v2 seceng_init--
+<6>[    0.486994] brd: module loaded
+<6>[    0.495091] loop: module loaded
+<6>[    0.498225] nbd: registered device at major 43
+<6>[    0.514328] camera_pmem: 0 init
+<6>[    0.514838] gralloc_pmem: 0 init
+<6>[    0.517913] overlay_pmem: 1 init
+<1>[    0.521601] Inside st_kim_init
+<6>[    0.524879] (stk) :inside kim_probe
+<6>[    0.524994] (stk) :find bt_gpio_enable gpio!
+<6>[    0.525088] (stk) : gpio 169 request done 
+<6>[    0.525205] (stk) :sysfs entries created
+<6>[    0.525347] (stk) : debugfs entries created 
+<1>[    0.525730] platform_driver_register in kim returned 0
+<4>[    0.531767] galcore options:
+<4>[    0.531837]   irqLine           = 64
+<4>[    0.531914]   registerMemBase   = 0xFA000000
+<4>[    0.532001]   registerMemSize   = 0x00040000
+<4>[    0.532089]   irqLine2D         = 65
+<4>[    0.532164]   registerMemBase2D = 0xFA040000
+<4>[    0.532251]   registerMemSize2D = 0x00040000
+<4>[    0.532339]   contiguousSize    = 134217728
+<4>[    0.532426]   contiguousBase    = 0x2D000000
+<4>[    0.532514]   bankSize          = 0x02000000
+<4>[    0.532600]   fastClear         = -1
+<4>[    0.532675]   compression       = -1
+<4>[    0.532750]   signal            = 48
+<4>[    0.532824]   baseAddress       = 0x00000000
+<4>[    0.532912]   physSize          = 0x80000000
+<3>[    0.606895] apanic: splash partition not on eMMC
+<6>[    0.607022] Android kernel panic mmc handler initialized
+<4>[    0.607977] i2c-core: driver [tpa2028_l] using legacy suspend method
+<4>[    0.608108] i2c-core: driver [tpa2028_l] using legacy resume method
+<4>[    0.608973] i2c-core: driver [tpa2028_r] using legacy suspend method
+<4>[    0.609104] i2c-core: driver [tpa2028_r] using legacy resume method
+<3>[    0.611946] mtdoops: mtd device (mtddev=name/number) must be supplied
+<6>[    0.616173] [NVE][init_nve]NV init ok!
+<4>[    0.616265] hinand_module_init
+<4>[    0.616991] [hinand_probe,1793]irq number is 2e 
+<4>[    0.617441] EN_REG3 value 0x0
+<4>[    0.617508] EN_REG3 value 0x80000
+<4>[    0.617580] RST_REG3 value 0x0
+<4>[    0.617658] [hinand_probe,1876]irq enable is 0 
+<4>[    0.617822] lby mode=5
+<4>[    0.617907] hinand_read_byte 0x0 0x0 0x2c
+<4>[    0.617996] hinand_read_byte 0x1 0x0 0x88
+<4>[    0.618099] hinand_read_byte 0x0 0x0 0x2c
+<4>[    0.618185] hinand_read_byte 0x1 0x0 0x88
+<4>[    0.618295] hinand_read_byte 0x0 0x0 0x2c
+<4>[    0.618381] hinand_read_byte 0x1 0x0 0x88
+<4>[    0.618467] hinand_read_byte 0x2 0x0 0x4
+<4>[    0.618551] hinand_read_byte 0x3 0x0 0x4b
+<4>[    0.618636] hinand_read_byte 0x4 0x0 0x81
+<4>[    0.618722] hinand_read_byte 0x5 0x0 0x8a
+<4>[    0.618807] hinand_read_byte 0x6 0x0 0xa7
+<4>[    0.618892] hinand_read_byte 0x7 0x0 0xd
+<6>[    0.618983] NAND device: Manufacturer ID: 0x2c, Chip ID: 0x88 (Micron NAND 8GiB 3,3V 8-bit)
+<4>[    0.619150] NAND_ECC_NONE selected by board driver. This is not recommended !!
+<6>[    0.619298] Scanning device for bad blocks
+<4>[    0.671973] Bad eraseblock 90 at 0x00000b400000
+<4>[    0.672973] Bad eraseblock 91 at 0x00000b600000
+<4>[    1.496735] Bad eraseblock 1513 at 0x0000bd200000
+<4>[    1.499733] Bad eraseblock 1518 at 0x0000bdc00000
+<4>[    1.500399] Bad eraseblock 1519 at 0x0000bde00000
+<4>[    1.532046] Bad eraseblock 1573 at 0x0000c4a00000
+<4>[    1.532712] Bad eraseblock 1574 at 0x0000c4c00000
+<3>[    1.638279] [k3v2_cpu_exit] 1352 cpu=3
+<5>[    1.639147] CPU3: shutdown
+<3>[    2.665590] [k3v2_cpu_exit] 1352 cpu=2
+<5>[    2.666950] CPU2: shutdown
+<5>[    3.055401] 14 cmdlinepart partitions found on MTD device hisi_nand
+<4>[    3.055619] partitions[0] = {.name = system, .offset = 0x2ca00000, .size = 0x40000000 (1048576KiB) }
+<4>[    3.055903] partitions[1] = {.name = cache, .offset = 0x6ca00000, .size = 0x10000000 (262144KiB) }
+<4>[    3.056179] partitions[2] = {.name = cust, .offset = 0x7ca00000, .size = 0x20000000 (524288KiB) }
+<4>[    3.056450] partitions[3] = {.name = cust2, .offset = 0x9ca00000, .size = 0x20000000 (524288KiB) }
+<4>[    3.056723] partitions[4] = {.name = userdata, .offset = 0xbca00000, .size = 0x143600000 (5298176KiB) }
+<4>[    3.057007] partitions[5] = {.name = nvme2, .offset = 0x0a800000, .size = 0x02000000 (32768KiB) }
+<4>[    3.057277] partitions[6] = {.name = nvme, .offset = 0x0c800000, .size = 0x02000000 (32768KiB) }
+<4>[    3.057749] partitions[7] = {.name = recovery, .offset = 0x26a00000, .size = 0x01000000 (16384KiB) }
+<4>[    3.058009] partitions[8] = {.name = misc, .offset = 0x20800000, .size = 0x00400000 (4096KiB) }
+<4>[    3.058182] partitions[9] = {.name = xloader, .offset = 0x20000000, .size = 0x00800000 (8192KiB) }
+<4>[    3.058358] partitions[10] = {.name = efi, .offset = 0x00400000, .size = 0x00400000 (4096KiB) }
+<4>[    3.058530] partitions[11] = {.name = fastboot, .offset = 0x00000000, .size = 0x00400000 (4096KiB) }
+<4>[    3.058709] partitions[12] = {.name = boot, .offset = 0x0e800000, .size = 0x01000000 (16384KiB) }
+<4>[    3.058883] partitions[13] = {.name = oeminfo, .offset = 0x21400000, .size = 0x02000000 (32768KiB) }
+<4>[    3.059057] hinand_probe 1957
+<5>[    3.059125] Creating 14 MTD partitions on "hisi_nand":
+<5>[    3.059241] 0x00002ca00000-0x00006ca00000 : "system"
+<5>[    3.061855] 0x00006ca00000-0x00007ca00000 : "cache"
+<5>[    3.064232] 0x00007ca00000-0x00009ca00000 : "cust"
+<5>[    3.066374] 0x00009ca00000-0x0000bca00000 : "cust2"
+<5>[    3.068675] 0x0000bca00000-0x000200000000 : "userdata"
+<5>[    3.071352] 0x00000a800000-0x00000c800000 : "nvme2"
+<6>[    3.072229] [NVE][nve_notify_add]:nve_major_number:250, mtd->index:5.
+<6>[    3.072361] [NVE][nve_notify_add]:mtd->name:nvme2.
+<5>[    3.074264] 0x00000c800000-0x00000e800000 : "nvme"
+<6>[    3.075175] [NVE][nve_notify_add]:nve_major_number:250, mtd->index:6.
+<6>[    3.075306] [NVE][nve_notify_add]:mtd->name:nvme.
+<5>[    3.077188] 0x000026a00000-0x000027a00000 : "recovery"
+<5>[    3.079586] 0x000020800000-0x000020c00000 : "misc"
+<5>[    3.081954] 0x000020000000-0x000020800000 : "xloader"
+<5>[    3.084403] 0x000000400000-0x000000800000 : "efi"
+<5>[    3.086812] 0x000000000000-0x000000400000 : "fastboot"
+<5>[    3.089222] 0x00000e800000-0x00000f800000 : "boot"
+<5>[    3.091553] 0x000021400000-0x000023400000 : "oeminfo"
+<6>[    3.094816] PPP generic driver version 2.4.2
+<6>[    3.095636] PPP Deflate Compression module registered
+<6>[    3.095744] PPP BSD Compression module registered
+<6>[    3.096853] PPP MPPE Compression module registered
+<6>[    3.096960] NET: Registered protocol family 24
+<6>[    3.097103] tun: Universal TUN/TAP device driver, 1.6
+<6>[    3.097207] tun: (C) 1999-2004 Max Krasnyansky <maxk@qualcomm.com>
+<6>[    3.098095] usbcore: registered new interface driver cdc_ether
+<6>[    3.098349] ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+<4>[    3.098601] hisik3_ehci_probe:: hiusb_ehci->power_down_on_bus_suspend = 0.
+<6>[    3.098768] hisik3_usb_phy_open.
+<6>[    3.098882] hisik3_usb_phy_power_off.
+<6>[    3.098964] hsic_phy_power_off.
+<6>[    3.099037] hsic_phy_clk_disable.
+<6>[    3.099461] ohci_hcd: USB 1.1 'Open' Host Controller (OHCI) Driver
+<6>[    3.100537] usbcore: registered new interface driver usbserial
+<6>[    3.100876] usbserial: USB Serial Driver core
+<6>[    3.101242] USB Serial support registered for Hisi USB generic serial
+<6>[    3.101665] usbcore: registered new interface driver hi_gs
+<6>[    3.102053] USB Serial support registered for GSM modem (1-port)
+<6>[    3.102464] usbcore: registered new interface driver option
+<6>[    3.102579] option: v0.7.2:USB Driver for GSM modems
+<6>[    3.102967] usbcore: registered new interface driver cdc_acm
+<6>[    3.103093] cdc_acm: USB Abstract Control Model driver for USB modems and ISDN adapters
+<6>[    3.103339] usbcore: registered new interface driver uas
+<6>[    3.103418] Initializing USB Mass Storage driver...
+<6>[    3.103632] usbcore: registered new interface driver usb-storage
+<6>[    3.103719] USB Mass Storage support registered.
+<7>[    3.103787] Module dwc_common_port init
+<6>[    3.103921] hisik3-usb-otg: version 2.93a 28-JUNE-2011
+<6>[    3.104075] [dwc_otg_driver_probe]+
+<6>[    3.104209] [hiusb]hiusb wake lock
+<6>[    3.105033] [hiusb]phy param: 0x0010a2e3
+<6>[    3.106119] hisik3-usb-otg hisik3-usb-otg: hiusb_probe_phase1 done.
+<4>[    3.106218] Core Release: 2.94a
+<4>[    3.106269] [dwc_otg_setup_params]+
+<4>[    3.106352] [dwc_otg_setup_params]-
+<6>[    3.106758] Internal DMA Mode
+<4>[    3.106804] Using Buffer DMA mode
+<4>[    3.106854] Periodic Transfer Interrupt Enhancement - disabled
+<4>[    3.106936] Multiprocessor Interrupt Enhancement - disabled
+<4>[    3.107016] OTG VER PARAM: 1, OTG VER FLAG: 1
+<6>[    3.107083] [usbotg][dwc_otg_core_init]:usb mode Device
+<4>[    3.107160] Dedicated Tx FIFOs mode
+<4>[    3.107433] On CS chip, going to hcd_init
+<6>[    3.107499] SR LOCK
+<6>[    3.107569] hisik3-usb-otg hisik3-usb-otg: DWC OTG Controller
+<6>[    3.107670] hisik3-usb-otg hisik3-usb-otg: new USB bus registered, assigned bus number 1
+<6>[    3.107807] hisik3-usb-otg hisik3-usb-otg: irq 84, io mem 0x00000000
+<6>[    3.108453] hub 1-0:1.0: USB hub found
+<6>[    3.108523] hub 1-0:1.0: 1 port detected
+<6>[    3.108858] [hiusb][hiusb_probe_phase2]+
+<6>[    3.108925] [hiusb]USB cable connected.
+<6>[    3.240950] [hiusb]detect CDP, BC_ST: 0x1404
+<6>[    3.241152] [hiusb]detect_charger_type, type: 0x1
+<6>[    3.241312] [hiusb][notify_charger_type]Notify charger type: 1
+<3>[    3.242059] hisik3-usb-otg hisik3-usb-otg: hiusb_request_irq done.
+<6>[    3.242256] hisik3-usb-otg hisik3-usb-otg: hiusb_probe_phase2 done.
+<6>[    3.242450] [hiusb][hiusb_probe_phase2]-
+<6>[    3.243859] registering gadget driver 'android_usb'
+<6>[    3.244035] [hiusb]allow_connect and powered on, is_on: 0
+<6>[    3.248979] android_usb gadget: Mass Storage Function, version: 2009/09/11
+<6>[    3.249124] android_usb gadget: Number of LUNs=1
+<6>[    3.249227]  lun0: LUN: removable file: (no medium)
+<6>[    3.250122] android_usb gadget: android_usb ready
+<4>[    3.250645] mousedev: could not register psaux device, error: -16
+<6>[    3.250816] mousedev: PS/2 mouse device common for all mice
+<6>[    3.250933] k3v2 keypad init!
+<6>[    3.251736] input: k3_keypad as /devices/platform/k3_keypad/input/input0
+<6>[    3.252356] k3_keypad k3_keypad: k3v2 keypad probe successfully!
+<6>[    3.252785] <6>k3v2 power key init!
+<6>[    3.253725] input: k3v2_power_key as /devices/platform/k3v2_power_key/input/input1
+<6>[    3.254402] k3v2_power_key k3v2_power_key: k3v2 power key driver probes successfully!
+<6>[    3.254838] <6>[gpiokey]k3v2 gpio key init!
+<6>[    3.255747] input: k3v2_gpio_key as /devices/platform/k3v2_gpio_key/input/input2
+<6>[    3.256321] k3v2_gpio_key k3v2_gpio_key: k3v2 gpio key driver probes successfully!
+<4>[    3.256823] ==ft5x0x_ts_probe=
+<3>[    3.257060] ft5x0x_ts ft5x0x_ts: ft5x0x_ts_probe: failed to config gpio
+<3>[    3.407766] i2c_designware dw-i2c.2: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[    3.408110] i2c_designware dw-i2c.2: error info -121, slave addr 0x38.
+<3>[    3.408324] ft5x0x_ts ft5x0x_ts: fft5x0x_i2c_Read: i2c read error.
+<3>[    3.408519] ft5x0x_ts ft5x0x_ts: ft5x0x_probe: I2C communication ERROR,read fw fail.
+<4>[    3.408909] ft5x0x_ts: probe of ft5x0x_ts failed with error -121
+<6>[    3.409687] Successfully added driver ft5x0x_ts
+<6>[    3.412424] using rtc device, pl031, for alarms
+<6>[    3.412564] rtc-pl031 pl061-rtc: rtc core: registered pl031 as rtc0
+<6>[    3.412749] rtc-pl031 pl061-rtc: rtc: year 126 mon 7 day 29 hour 14 min 23 sec 53 time 0x6a92eb79
+<6>[    3.413252] i2c_designware dw-i2c.0: DMA channel TX dma0chan19-19
+<6>[    3.413409] i2c_designware dw-i2c.0: DMA channel RX dma0chan18-18
+<6>[    3.413556] i2c_designware dw-i2c.1: DMA channel TX dma0chan21-21
+<6>[    3.413712] i2c_designware dw-i2c.1: DMA channel RX dma0chan20-20
+<6>[    3.413856] i2c_designware dw-i2c.2: DMA channel TX dma0chan24-24
+<6>[    3.414045] i2c_designware dw-i2c.2: DMA channel RX dma0chan23-23
+<6>[    3.414193] i2c_designware dw-i2c.3: DMA channel TX dma0chan26-26
+<6>[    3.414333] i2c_designware dw-i2c.3: DMA channel RX dma0chan25-25
+<6>[    3.414457] Linux video capture interface: v2.00
+<4>[    3.415193] [K3_V4L2]INFO: 
+<4>[    3.415236] K3 camera v4l2 driver init
+<4>[    3.415345] [K3_V4L2]INFO: enter K3 camera v4l2 driver probe
+<4>[    3.415616] [K3_V4L2]INFO: K3 camera v4l2 driver init OK !!
+<4>[    3.415838] [SENSOR_COMMON]INFO: register sensor [s5k5cag] with type [0] to [0]
+<4>[    3.415942] [GC0339]INFO: enter gc0339_module_init
+<4>[    3.416011] [GC0339]INFO: enter gc0339_set_default
+<4>[    3.416084] [SENSOR_COMMON]INFO: register sensor [gc0339] with type [1] to [0]
+<6>[    3.416691] [NVE][nve_direct_access] Access NVE1 items[500].
+<6>[    3.416782] [NVE] nve->nve_partition_count = 0x8.
+<6>[    3.416854] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    3.416970] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[    3.591882] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    3.592142] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[    3.779258] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    3.779520] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[    3.966628] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    3.966887] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[    4.153763] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    4.154201] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[    4.341093] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    4.341356] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[    4.528502] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    4.528765] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[    4.715919] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[    4.716110] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    4.716360] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[    4.903368] [NVE] nve_open_ex: no valid NVM.
+<4>[    4.903517] get_vbatt_percentage_map :read nv fail!
+<6>[    4.903686] [NVE][nve_direct_access] Access NVE1 items[502].
+<6>[    4.903874] [NVE] nve->nve_partition_count = 0x8.
+<6>[    4.904222] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    4.904479] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[    5.091612] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    5.091869] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[    5.278862] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    5.279122] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[    5.466323] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    5.466584] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[    5.653743] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    5.654187] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[    5.841058] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    5.841319] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[    6.028472] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    6.028732] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[    6.215884] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[    6.216075] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    6.216326] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[    6.403442] [NVE] nve_open_ex: no valid NVM.
+<4>[    6.403595] Fail to read index 0
+<6>[    6.403714] [NVE][nve_direct_access] Access NVE1 items[508].
+<6>[    6.403904] [NVE] nve->nve_partition_count = 0x8.
+<6>[    6.404252] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    6.404509] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[    6.591365] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    6.591624] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[    6.778836] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    6.779094] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[    6.966340] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    6.966600] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[    7.153739] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    7.154181] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[    7.341084] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    7.341346] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[    7.528745] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    7.529007] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[    7.716351] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[    7.716541] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    7.716790] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[    7.903761] [NVE] nve_open_ex: no valid NVM.
+<4>[    7.903912] get_vbatt_rbat :read nv rbat fail!
+<4>[    7.904630] bqdemon_battery_temperature 1082  temperature is 81.
+<4>[    7.904805]  
+<1>[    7.904885] is_bqdemon_battery_exist 2153  temp_now = 81 battery not in
+<4>[    7.912010] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    7.912092]  
+<6>[    7.912124] (NULL device *): bqdemon_battery_data_init Check battery finish 
+<4>[    7.912510] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    7.912594]  
+<3>[    7.912904] (NULL device *): boardid does not set limited charge voltage
+<4>[    7.913285] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    7.913368]  
+<6>[    7.918951] [EMF_TEST] Current Vsys = 3876, Vbat = 3886, dv=-10
+<3>[    7.919040] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.919135] [EMF TEST]Ipa = 0, Besides Epa, E = 3902 
+<6>[    7.919211] [EMF TEST]Current Vbat = 3886 Vsys = 3876 dV = -10 EMF = 3902
+<6>[    7.919308] [EMF TEST]Average Vbat = 3886 Vsys = 3876 dV = -10 EMF = 3902
+<6>[    7.924922] [EMF_TEST] Current Vsys = 3878, Vbat = 3886, dv=-8
+<3>[    7.925009] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.925104] [EMF TEST]Ipa = 0, Besides Epa, E = 3898 
+<6>[    7.925178] [EMF TEST]Current Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<6>[    7.925273] [EMF TEST]Average Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3900
+<6>[    7.930913] [EMF_TEST] Current Vsys = 3881, Vbat = 3886, dv=-5
+<3>[    7.930999] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.931094] [EMF TEST]Ipa = 0, Besides Epa, E = 3894 
+<6>[    7.931169] [EMF TEST]Current Vbat = 3886 Vsys = 3881 dV = -5 EMF = 3894
+<6>[    7.931264] [EMF TEST]Average Vbat = 3886 Vsys = 3881 dV = -5 EMF = 3898
+<6>[    7.936874] [EMF_TEST] Current Vsys = 3880, Vbat = 3887, dv=-7
+<3>[    7.936959] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.937055] [EMF TEST]Ipa = 0, Besides Epa, E = 3898 
+<6>[    7.937129] [EMF TEST]Current Vbat = 3887 Vsys = 3880 dV = -7 EMF = 3898
+<6>[    7.937224] [EMF TEST]Average Vbat = 3887 Vsys = 3880 dV = -7 EMF = 3898
+<6>[    7.942867] [EMF_TEST] Current Vsys = 3879, Vbat = 3887, dv=-8
+<3>[    7.942952] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.943047] [EMF TEST]Ipa = 0, Besides Epa, E = 3899 
+<6>[    7.943121] [EMF TEST]Current Vbat = 3887 Vsys = 3879 dV = -8 EMF = 3899
+<6>[    7.943217] [EMF TEST]Average Vbat = 3887 Vsys = 3879 dV = -8 EMF = 3898
+<6>[    7.948819] [EMF_TEST] Current Vsys = 3876, Vbat = 3885, dv=-9
+<3>[    7.948903] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.948998] [EMF TEST]Ipa = 0, Besides Epa, E = 3899 
+<6>[    7.949072] [EMF TEST]Current Vbat = 3885 Vsys = 3876 dV = -9 EMF = 3899
+<6>[    7.949167] [EMF TEST]Average Vbat = 3885 Vsys = 3876 dV = -9 EMF = 3898
+<6>[    7.954851] [EMF_TEST] Current Vsys = 3877, Vbat = 3886, dv=-9
+<3>[    7.954937] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.955032] [EMF TEST]Ipa = 0, Besides Epa, E = 3900 
+<6>[    7.955106] [EMF TEST]Current Vbat = 3886 Vsys = 3877 dV = -9 EMF = 3900
+<6>[    7.955201] [EMF TEST]Average Vbat = 3886 Vsys = 3877 dV = -9 EMF = 3898
+<6>[    7.960811] [EMF_TEST] Current Vsys = 3878, Vbat = 3886, dv=-8
+<3>[    7.960895] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.960991] [EMF TEST]Ipa = 0, Besides Epa, E = 3898 
+<6>[    7.961065] [EMF TEST]Current Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<6>[    7.961160] [EMF TEST]Average Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<6>[    7.966759] [EMF_TEST] Current Vsys = 3878, Vbat = 3886, dv=-8
+<3>[    7.966845] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.966941] [EMF TEST]Ipa = 0, Besides Epa, E = 3898 
+<6>[    7.967015] [EMF TEST]Current Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<6>[    7.967110] [EMF TEST]Average Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<6>[    7.972716] [EMF_TEST] Current Vsys = 3878, Vbat = 3886, dv=-8
+<3>[    7.972802] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.972896] [EMF TEST]Ipa = 0, Besides Epa, E = 3898 
+<6>[    7.972971] [EMF TEST]Current Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<6>[    7.973067] [EMF TEST]Average Vbat = 3886 Vsys = 3878 dV = -8 EMF = 3898
+<1>[    7.973162] read health result = 0 
+<4>[    7.977000] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    7.977084]  
+<6>[    7.982625] [EMF_TEST] Current Vsys = 3875, Vbat = 3884, dv=-9
+<3>[    7.982710] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    7.982805] [EMF TEST]Ipa = 0, Besides Epa, E = 3898 
+<6>[    7.982879] [EMF TEST]Current Vbat = 3884 Vsys = 3875 dV = -9 EMF = 3898
+<6>[    7.982975] [EMF TEST]Average Vbat = 3884 Vsys = 3875 dV = -9 EMF = 3898
+<6>[    7.983070] [EMF TEST]isCharging = 2 di->capacityIsFull = 0 EMF = 3898
+<6>[    7.983163] [EMF_TEST]Capacity = 65 before tiny jump
+<6>[    7.983234] [EMF_TEST]pre_capacity = 101
+<6>[    7.983292] [EMF TEST]UNKNOWN Tiny jump!                timer = 9
+<6>[    7.983378] [EMF TEST]UNKOWN Tiny jump!
+<6>[    7.983434] [EMF_TEST]capacity = 65
+<1>[    7.983486] read capactiylevel result = 65 
+<1>[    7.987743] bqdemon_battery_capacity_level 2109 read capactiylevel status = 3 
+<4>[    7.995360] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    7.995443]   Actually vol=3890  cunt 1,sum 3890, vol 3890, ---->1
+<4>[    7.995815]   Actually vol=3888  cunt 2,sum 7778, vol 3889, ---->2
+<4>[    7.996288]  
+<1>[    7.996321] read current result = 180 mA
+<1>[    8.000316] read current result = 180 mA
+<4>[    8.005259]  Actually vol=3878  cunt 3,sum 11656, vol 3885, ---->3
+<4>[    8.005351]  
+<1>[    8.005383] read current result = 180 mA
+<1>[    8.009444] read current result = 180 mA
+<1>[    8.014413]  CHG_DEBUG: chg_batt_volt_calib_init in 
+<6>[    8.019597] [NVE][nve_direct_access] Access NVE0 items[309].
+<6>[    8.019704] [NVE] nve->nve_partition_count = 0x8.
+<6>[    8.019776] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    8.019948] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[    8.186677] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    8.186844] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[    8.355001] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    8.355167] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[    8.526073] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    8.526240] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[    8.696725] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    8.696892] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[    8.867428] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    8.867595] [NVE][nve_get_phy_addr]: find phy index[6] for index[6].
+<6>[    9.038100] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    9.038266] [NVE][nve_get_phy_addr]: find phy index[7] for index[7].
+<7>[    9.208751] [NVE][nve_find_valid_partition]current_id = 2.
+<6>[    9.208869] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    9.209030] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<6>[    9.377436] [NVE][nve_get_phy_addr]: mtd 0xdd260400, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    9.377603] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<7>[    9.545771] [NVE]Original valid_items: 0x133.
+<7>[    9.545934] [NVE]Actual valid_items: 0x133.
+<6>[    9.546024] [NVE][nve_open_ex]current_id = 2
+<6>[    9.546116] [NVE][nve_direct_access]valid items 0x133
+<3>[    9.546222] [NVE][nve_direct_access] NV items[309] is not defined, nve_header->valid_items is 307.
+<1>[    9.546393]  CHG_DEBUG: hweiOperaNVWR low get failed 
+<6>[    9.551563] [NVE][nve_direct_access] Access NVE0 items[314].
+<6>[    9.551646] [NVE][nve_open_ex]:NV has been initialized!
+<6>[    9.551722] [NVE][nve_direct_access]valid items 0x133
+<3>[    9.551796] [NVE][nve_direct_access] NV items[314] is not defined, nve_header->valid_items is 307.
+<1>[    9.551919]  CHG_DEBUG: hweiOperaNVWR low get failed 
+<4>[    9.557102] bq_bci_battery_work 938 in ----->
+<1>[    9.557169] read health result = 0 
+<3>[    9.560880] bq_bci_battery bq_bci_battery.1: SUCC to get PMU vbatlow-irq[349] finish !
+<4>[    9.561026] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    9.561109]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    9.562198]  
+<3>[    9.562764] bq2419x_charger 1-006b:  bq2419x get charge parameter from boardid fail 
+<6>[    9.562880] [NVE][nve_direct_access] Access NVE1 items[510].
+<6>[    9.562966] [NVE] nve->nve_partition_count = 0x8.
+<6>[    9.563064] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    9.563178] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[    9.567520] [EMF_TEST] Current Vsys = 3874, Vbat = 3883, dv=-9
+<3>[    9.567607] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    9.567702] [EMF TEST]Ipa = 0, Besides Epa, E = 3897 
+<6>[    9.567787] [EMF TEST]Current Vbat = 3883 Vsys = 3874 dV = -9 EMF = 3897
+<6>[    9.567883] [EMF TEST]Average Vbat = 3883 Vsys = 3874 dV = -9 EMF = 3898
+<6>[    9.567978] [EMF TEST]isCharging = 2 di->capacityIsFull = 0 EMF = 3898
+<6>[    9.568071] [EMF_TEST]Capacity = 65 before tiny jump
+<6>[    9.568143] [EMF_TEST]pre_capacity = 65
+<6>[    9.568200] [EMF TEST]UNKNOWN Tiny jump!                timer = 8
+<6>[    9.568286] [EMF TEST]UNKOWN Tiny jump!
+<6>[    9.568343] [EMF_TEST]capacity = 65
+<1>[    9.568396] read capactiylevel result = 65 
+<1>[    9.572659] bqdemon_battery_capacity_level 2109 read capactiylevel status = 3 
+<4>[    9.580295] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    9.580378]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    9.580725]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[    9.581099]   Actually vol=3886  cunt 4,sum 15542, vol 3885, ---->4
+<4>[    9.581474]  
+<6>[    9.587556] [EMF_TEST] Current Vsys = 3875, Vbat = 3883, dv=-8
+<3>[    9.587641] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[    9.587736] [EMF TEST]Ipa = 0, Besides Epa, E = 3895 
+<6>[    9.587927] [EMF TEST]Current Vbat = 3883 Vsys = 3875 dV = -8 EMF = 3895
+<6>[    9.588023] [EMF TEST]Average Vbat = 3883 Vsys = 3875 dV = -8 EMF = 3898
+<6>[    9.588117] [EMF TEST]isCharging = 2 di->capacityIsFull = 0 EMF = 3898
+<6>[    9.588209] [EMF_TEST]Capacity = 65 before tiny jump
+<6>[    9.588280] [EMF_TEST]pre_capacity = 65
+<6>[    9.588336] [EMF TEST]UNKNOWN Tiny jump!                timer = 7
+<6>[    9.588422] [EMF TEST]UNKOWN Tiny jump!
+<6>[    9.588586] [EMF_TEST]capacity = 65
+<6>[    9.588640] [EMF TEST]curr_capacity = 65bq_bci_battery_work 959 OUT -----<<
+<4>[    9.589060]  Actually vol=3886  cunt 5,sum 19428, vol 3885, ---->5
+<4>[    9.589259]  
+<1>[    9.589293] read current result = 180 mA
+<1>[    9.593408] read current result = 180 mA
+<6>[    9.749965] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    9.750226] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[    9.937485] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[    9.937745] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[   10.125073] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   10.125332] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[   10.312252] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   10.312512] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[   10.499557] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   10.499819] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[   10.687017] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   10.687279] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[   10.874643] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[   10.874837] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   10.875088] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[   11.062288] [NVE] nve_open_ex: no valid NVM.
+<4>[   11.062437] bq2419x: hweiOperaNVWR get NV 510 failed !
+<6>[   11.064394] bq2419x_charger 1-006b: case = CHARGER_TYPE_BC_USB -> 
+<7>[   11.064745] [bq2419x_charger_interrupt]Bq2419x interrupt attached!
+<3>[   11.065342] bq2419x_charger 1-006b: REG[9] read : 0x80
+<4>[   11.065963] i2c-core: driver [bq2419x_charger] using legacy suspend method
+<4>[   11.066295] i2c-core: driver [bq2419x_charger] using legacy resume method
+<4>[   11.068440] k3v2_watchdog k3v2_watchdog: WDT probing has been finished
+<6>[   11.070935] device-mapper: uevent: version 1.0.3
+<6>[   11.071043] [EMF_TEST] Current Vsys = 3879, Vbat = 3886, dv=-7
+<3>[   11.071164] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   11.071295] [EMF TEST]Ipa = 0, Besides Epa, E = 3897 
+<6>[   11.071401] [EMF TEST]Current Vbat = 3886 Vsys = 3879 dV = -7 EMF = 3897
+<6>[   11.071533] [EMF TEST]Average Vbat = 3886 Vsys = 3879 dV = -7 EMF = 3897
+<6>[   11.071674] [EMF TEST]isCharging = 2 di->capacityIsFull = 0 EMF = 3897
+<6>[   11.071806] [EMF_TEST]Capacity = 65 before tiny jump
+<6>[   11.071907] [EMF_TEST]pre_capacity = 65
+<6>[   11.072003] [EMF TEST]UNKNOWN Tiny jump!                timer = 6
+<6>[   11.072124] [EMF TEST]UNKOWN Tiny jump!
+<6>[   11.072205] [EMF_TEST]capacity = 65
+<3>[   11.072290] bq_bci_battery bq_bci_battery.1: bq_charger_event  AC Start evt run cap = 65%..
+<4>[   11.072780] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   11.072896]  
+<6>[   11.073292] bq2419x_charger 1-006b:  battery_id_status = 3
+<3>[   11.073377] bq2419x_charger 1-006b: boardid does not set limited charge voltage
+<6>[   11.073613] device-mapper: ioctl: 4.20.0-ioctl (2011-02-02) initialised: dm-devel@redhat.com
+<4>[   11.073795]  Actually vol=3890  cunt 6,sum 23318, vol 3886, ---->6
+<4>[   11.073888]  
+<1>[   11.073922] read current result = 180 mA
+<1>[   11.077956] read current result = 180 mA
+<6>[   11.081132] mshci: Mobile Storage Host Controller Interface driver
+<6>[   11.081220] mshci: Copyright(c) Pierre Ossman
+<6>[   11.081319] [himci][hi_mci_probe]:id:0
+<6>[   11.081377] [himci][hi_mci_probe]:irq:48,start:0xfcd03000,size:0x1000
+<6>[   11.081530] [himci][hi_mci_probe]:devname : hi_mci.0, regname: sd-vcc
+<6>[   11.081647] [himci][hi_mci_probe]:devname : hi_mci.0, signal regname: sdio-vcc
+<6>[   11.081773] mmc0: Version ID 0x5342241a.
+<6>[   11.081843] mmc0: FIFO WMARK FOR RX 0x8 WX 0x8.
+<6>[   11.082224] mmc0: MSHCI controller on hisi_k3v2_mmc [hi_mci.0] using IDMA
+<6>[   11.082324] [hi_mci.0][mshci_hi_set_ios]:set io to normal
+<6>[   11.082425] [himci][hi_mci_probe]:id:3
+<6>[   11.082494] [himci][hi_mci_probe]:irq:51,start:0xfcd06000,size:0x1000
+<6>[   11.082635] mmc1: Version ID 0x5342241a.
+<6>[   11.082705] mmc1: FIFO WMARK FOR RX 0x8 WX 0x8.
+<6>[   11.083067] mmc1: MSHCI controller on hisi_k3v2_mmc [hi_mci.3] using IDMA
+<7>[   11.083535] Registered led device: red
+<7>[   11.083737] Registered led device: green
+<7>[   11.083943] Registered led device: blue
+<6>[   11.084176] k3v2 keypad backlight init!
+<7>[   11.084436] Registered led device: keyboard-backlight
+<6>[   11.084800] usb_switch_probe entry.
+<6>[   11.091701] usbcore: registered new interface driver usbhid
+<6>[   11.091784] usbhid: USB HID core driver
+<6>[   11.092327] logger: created 256K log 'log_main'
+<6>[   11.092551] logger: created 256K log 'log_events'
+<6>[   11.092780] logger: created 256K log 'log_radio'
+<6>[   11.093015] logger: created 256K log 'log_system'
+<6>[   11.093486] [NVE][nve_direct_access] Access NVE1 items[507].
+<6>[   11.093577] [NVE] nve->nve_partition_count = 0x8.
+<6>[   11.093649] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   11.093765] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<7>[   11.107843] mmc0: CMD 52(arg=0xc00) REP time out
+<7>[   11.108253] mmc0: CMD 52(arg=0x80000c08) REP time out
+<7>[   11.112133] mmc0: CMD 5(arg=0x0) REP time out
+<7>[   11.112531] mmc0: CMD 5(arg=0x0) REP time out
+<7>[   11.112919] mmc0: CMD 5(arg=0x0) REP time out
+<7>[   11.113305] mmc0: CMD 5(arg=0x0) REP time out
+<6>[   11.113393] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:++
+<6>[   11.113482] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:old_sig_voltage = 0 
+<6>[   11.113601] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:new_sig_voltage = 0 
+<6>[   11.113708] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:allow_switch_signal_voltage = 1 
+<6>[   11.113829] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:--
+<6>[   11.120034] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:++
+<6>[   11.120122] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:old_sig_voltage = 0 
+<6>[   11.120239] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:new_sig_voltage = 0 
+<6>[   11.120345] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:allow_switch_signal_voltage = 1 
+<6>[   11.120467] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:--
+<6>[   11.181634] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:++
+<6>[   11.181764] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:old_sig_voltage = 0 
+<6>[   11.181918] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:new_sig_voltage = 1 
+<6>[   11.182071] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:allow_switch_signal_voltage = 1 
+<6>[   11.182243] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:alter driver 8mA
+<6>[   11.182440] [hi_mci.0][mshci_hi_start_signal_voltage_switch]:--
+<3>[   11.188132] mmc0: cd 0x10404 in voltage_switch
+<3>[   11.201787] MMC_SET_DRIVER_TYPE:1 (0:b,1:a,2:c,3:d)
+<3>[   11.203210] mmc0: mshci_execute_tuning ++
+<4>[   11.203300] mmc0: tuning type = 1
+<6>[   11.204672] [hi_mci.0][mshci_hi_tuning_find_condition]:tuning OK: timing is 5, tuning sample = 1, tuning_flag = 0xf
+<3>[   11.204914] mmc0: mshci_execute_tuning --
+<3>[   11.205764] mmc0: mshci_execute_tuning ++
+<4>[   11.205853] mmc0: tuning type = 1
+<6>[   11.207105] [hi_mci.0][mshci_hi_tuning_find_condition]:tuning OK: timing is 5, tuning sample = 1, tuning_flag = 0xf
+<3>[   11.207381] mmc0: mshci_execute_tuning --
+<6>[   11.207501] mmc0: new ultra high speed SDHC card at address 0002
+<6>[   11.208518] mmcblk0: mmc0:0002 SD 7.45 GiB 
+<6>[   11.210394]  mmcblk0: p1
+<6>[   11.211755] [hi_mci.3][mshci_hi_set_ios]:set io to normal
+<4>[   11.211876] TI WL18XX: Powering on WiFi
+<6>[   11.271695] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   11.271811] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<7>[   11.324527] mmc1: CMD 52(arg=0xc00) REP time out
+<7>[   11.325130] mmc1: CMD 52(arg=0x80000c08) REP time out
+<7>[   11.328783] mmc1: CMD 8(arg=0xaa) REP time out
+<4>[   11.329293] mmc1: card claims to support voltages below the defined range. These will be ignored.
+<3>[   11.330663] mmc1: CCCR structure version: 3
+<4>[   11.340685] mmc1: queuing unknown CIS tuple 0x91 (3 bytes)
+<6>[   11.342080] mmc1: new high speed SDIO card at address 0001
+<6>[   11.342508] [hi_mci.3][mshci_hi_set_ios]:set io to lowpower
+<4>[   11.342606] TI WL18XX: Powering off WiFi
+<6>[   11.437436] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   11.437602] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[   11.575746] bq2419x_charger 1-006b: bq2419x_start_ac_charger, ---->START AC CHARGING, 
+<6>[   11.575984] battery current = 1800 mA
+<6>[   11.576095] battery voltage = 4208 mV
+<6>[   11.576205] cin_limit_current = 1800 mA
+<4>[   11.576816] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   11.576990]  bqdemon_battery_adjust_voltage 1096  Reset the voltage now .
+<4>[   11.577209]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   11.577728]   Actually vol=3958  cunt 1,sum 3958, vol 3958, ---->1
+<4>[   11.578180]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   11.578623]  
+<6>[   11.585232] [EMF_TEST] Current Vsys = 3977, Vbat = 3960, dv=17
+<3>[   11.585358] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   11.585503] [EMF TEST]Ipa = 0, Besides Epa, E = 3911 
+<6>[   11.585609] [EMF TEST]Current Vbat = 3960 Vsys = 3977 dV = 17 EMF = 3911
+<6>[   11.585743] [EMF TEST]Average Vbat = 3960 Vsys = 3977 dV = 17 EMF = 3898
+<6>[   11.585878] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3898
+<6>[   11.586010] [EMF_TEST]Capacity = 65 before tiny jump
+<6>[   11.586116] [EMF_TEST]pre_capacity = 65
+<6>[   11.586199] [EMF TEST]CHARGING Tiny jump!
+<6>[   11.586282] [EMF_TEST]capacity = 65
+<4>[   11.587078]  Actually vol=3958  cunt 2,sum 7916, vol 3958, ---->2
+<4>[   11.587207]  
+<1>[   11.587261] read current result = 180 mA
+<1>[   11.591297] read current result = 180 mA
+<6>[   11.600442] [EMF_TEST] Current Vsys = 3979, Vbat = 3960, dv=19
+<3>[   11.600529] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   11.600646] [EMF TEST]Ipa = 0, Besides Epa, E = 3905 
+<6>[   11.600722] [EMF TEST]Current Vbat = 3960 Vsys = 3979 dV = 19 EMF = 3905
+<6>[   11.600819] [EMF TEST]Average Vbat = 3960 Vsys = 3979 dV = 19 EMF = 3899
+<6>[   11.600923] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3899
+<6>[   11.601017] [EMF_TEST]Capacity = 66 before tiny jump
+<6>[   11.601088] [EMF_TEST]pre_capacity = 65
+<6>[   11.601144] [EMF TEST]CHARGE Tiny jump!                    timer = 4
+<6>[   11.601233] [EMF_TEST]capacity = 65
+<1>[   11.601287] is_bqdemon_battery_full=0 charge 2
+<3>[   11.606372] bq2419x_charger 1-006b: CHARGER STATUS 80
+<6>[   11.610378] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   11.610495] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[   11.790005] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   11.790267] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[   11.977677] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   11.977939] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[   12.165274] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   12.165537] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[   12.352759] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[   12.352951] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   12.353201] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[   12.540523] [NVE] nve_open_ex: no valid NVM.
+<3>[   12.540755] vibrator hkvibrator: NV not supported for k3_vibrator.
+<4>[   12.540992] vibrator: probe of hkvibrator failed with error -22
+<4>[   12.543214] memalloc_major is 246
+<6>[   12.543793] hx170dec: HW ID=0x67312398
+<6>[   12.543925] hx170dec: Compatible HW found at 0xfa208000
+<6>[   12.545324] hx170dec_major is 245
+<3>[   12.546239] hx170dec: add cdev OK
+<3>[   12.546925] hx280enc: hx280enc: Valid HW found at base <0xfa209000> with ID <0x82900740>
+<3>[   12.547076] 
+<6>[   12.548824] [sensor_input_info_init] ++
+<6>[   12.549160] [sensor_input_info_init] --[l3g4200d_probe] +
+<3>[   12.549359] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.549505] i2c_designware dw-i2c.0: error info -121, slave addr 0x68.
+<3>[   12.549600] l3g4200d_gyr 0-0068: read transfer error: -121
+<3>[   12.549682] l3g4200d_gyr 0-0068: l3g4200d_gyr hw l3g4200d_i2c_read err= -5
+<3>[   12.549781] l3g4200d_gyr 0-0068: l3g4200d_gyr: Driver Initialization failed
+<4>[   12.549888] l3g4200d_gyr: probe of 0-0068 failed with error -5
+<4>[   12.550130] i2c-core: driver [l3g4200d_gyr] using legacy suspend method
+<4>[   12.550225] i2c-core: driver [l3g4200d_gyr] using legacy resume method
+<3>[   12.550428] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.550572] i2c_designware dw-i2c.0: error info -121, slave addr 0x53.
+<3>[   12.550694] adxl34x 0-0053: Read ACC ADXL Chip ID Err 0x87
+<3>[   12.550777] adxl34x 0-0053: initialize failed -19.
+<3>[   12.551094] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.551238] i2c_designware dw-i2c.0: error info -121, slave addr 0x1c.
+<3>[   12.551336] mma8452 0-001c: read chip ID 0xffffff87 is not equal to 0x2a or 0x2a!
+<4>[   12.551447] mma8452: probe of 0-001c failed with error -22
+<6>[   12.551860] lis3dh_acc 0-0018: Read lis3dh chip ok, ID is 0x33
+<6>[   12.554231] input: acc_input as /devices/platform/dw-i2c.0/i2c-0/0-0018/input/input3
+<3>[   12.554975] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.555120] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.567374] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.567522] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.580757] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.580963] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.594188] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.594512] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.607537] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.607862] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.620904] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.621229] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.634187] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.634511] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.647517] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.647838] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.660901] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.661224] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.674200] i2c_designware dw-i2c.0: i2c_dw_handle_tx_abort: slave address not acknowledged (7bit mode)
+<3>[   12.674527] i2c_designware dw-i2c.0: error info -121, slave addr 0xc.
+<3>[   12.687436] akm8975 0-000c: AKI2C_RxData retry over 10
+<3>[   12.687631] akm8975 0-000c: AKM8975 akm8975_probe: check chip id error
+<4>[   12.687864] akm8975: probe of 0-000c failed with error -5
+<6>[   12.688678] thermal_governor_dev_register:Adding k3v2_ondie_governor governor
+<6>[   12.689145] average_on_die_temperature: canot get ap,sim,k3v2 temp 
+<6>[   12.689329] 
+<6>[   12.690764] thermal_sensor_dev_register:Found cpu cpu
+<6>[   12.690942] thermal_sensor_dev_register:Adding k3v2_ondie_sensor sensor
+<6>[   12.691183] k3v2_process_cpu_temp: Setting k3v2_ondie_sensor pointer
+<6>[   12.691392] k3v2_temp_sensor k3v2_temp_sensor.2: k3v2_ondie_sensor : 'k3v2_temp_sensor'
+<6>[   12.695749] hi6421_codec_init
+<6>[   12.696022] hi6421_probe
+<6>[   12.696853] digital_audio_init
+<6>[   12.699766] hi3620_hi6421_soc_init
+<6>[   12.700068] hi3620_hi6421_probe
+<6>[   12.701439] Entry hi6421_codec_probe
+<6>[   12.702008] hi6421_add_widgets : pmuid = 25
+<6>[   12.708267] hi6421_hs_jack_detect:Set key sucess.
+<6>[   12.740965] hi6421_codec_probe(3539) : check_voltage = 892
+<6>[   12.741084] hi6421_hkadc_ctl_probe: mainpga is OFF
+<6>[   12.742359] Unplug! 
+<6>[   12.742452] hi6421_hkadc_ctl: mainpga is OFF
+<6>[   12.743399] hi3620-pcm[I]:hi3620_pcm_new:1362: hi3620_pcm_new : dev->dma_mask not set
+<6>[   12.743559] hi3620-pcm[I]:hi3620_pcm_new:1367: hi3620_pcm_new : dev->coherent_dma_mask not set
+<6>[   12.744718] hi3620-pcm[I]:hi3620_pcm_new:1377: hi3620_pcm_new: pcm->device = 0
+<6>[   12.744833] asoc: hi6421-dai <-> hi3620-mm mapping ok
+<6>[   12.745533] asoc: hi6421-dai <-> hi3620-modem mapping ok
+<6>[   12.746231] asoc: hi6421-dai <-> hi3620-fm mapping ok
+<6>[   12.746929] asoc: hi6421-dai <-> hi3620-bt mapping ok
+<6>[   12.748685] hi3620-digital[I]:hi3620_digital_new:1191: hi3620_digital_new: pcm->device = 0
+<6>[   12.748810] asoc: digital-audio-dai <-> hi3620-digital mapping ok
+<6>[   12.751025] input: HI3620_HI6421_CARD Headset Jack as /devices/platform/soc-audio/sound/card0/input4
+<6>[   12.751709] ALSA device list:
+<6>[   12.751760]   #0: HI3620_HI6421_CARD
+<6>[   12.751943] GACT probability NOT on
+<6>[   12.752004] Mirror/redirect action on
+<6>[   12.752062] u32 classifier
+<6>[   12.752105]     Actions configured
+<6>[   12.752160] Netfilter messages via NETLINK v0.30.
+<6>[   12.752309] nf_conntrack version 0.5.0 (11237 buckets, 44948 max)
+<6>[   12.753246] ctnetlink v0.93: registering with nfnetlink.
+<6>[   12.753365] NF_TPROXY: Transparent proxy support initialized, version 4.1.0
+<6>[   12.753468] NF_TPROXY: Copyright (c) 2006-2007 BalaBit IT Ltd.
+<6>[   12.753901] xt_time: kernel timezone is -0000
+<6>[   12.755375] ip_tables: (C) 2000-2006 Netfilter Core Team
+<6>[   12.755633] arp_tables: (C) 2002 David S. Miller
+<6>[   12.755762] TCP cubic registered
+<6>[   12.756956] NET: Registered protocol family 10
+<6>[   12.759667] Mobile IPv6
+<6>[   12.759738] ip6_tables: (C) 2000-2006 Netfilter Core Team
+<6>[   12.760028] IPv6 over IPv4 tunneling driver
+<6>[   12.762291] NET: Registered protocol family 17
+<6>[   12.762386] NET: Registered protocol family 15
+<6>[   12.762456] lib80211: common routines for IEEE802.11 drivers
+<7>[   12.762542] lib80211_crypt: registered algorithm 'NULL'
+<6>[   12.762621] ThumbEE CPU extension supported.
+<5>[   12.762697] Registering SWP/SWPB emulation handler
+<4>[   12.769729] regulator_init_complete: USB_CHG_PUMP: incomplete constraints, leaving on
+<4>[   12.769931] regulator_init_complete: LDO3: incomplete constraints, leaving on
+<4>[   12.770046] regulator_init_complete: LDO0: incomplete constraints, leaving on
+<4>[   12.770193] <<-GTP-INFO->> GTP driver install.
+<4>[   12.770438] <<-GTP-INFO->> GTP Driver Version:V1.4<2012/12/12>
+<4>[   12.770528] <<-GTP-INFO->> GTP Driver build@11:40:59,Feb 28 2014
+<4>[   12.770673] <<-GTP-INFO->> GTP I2C Address:0x14
+<3>[   12.770765] Goodix-TS Goodix-TS: gtp_request_io_port: failed to config gpio
+<4>[   12.871397] <<-GTP-INFO->> Ready to run update thread.
+<6>[   12.871828] [NVE][nve_direct_access] Access NVE1 items[512].
+<6>[   12.872030] [NVE] nve->nve_partition_count = 0x8.
+<6>[   12.872196] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   12.872449] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[   13.059731] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   13.059992] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<3>[   13.162760] [k3v2_cpu_exit] 1352 cpu=1
+<5>[   13.164509] CPU1: shutdown
+<6>[   13.247979] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   13.248241] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[   13.435562] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   13.435825] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[   13.622732] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   13.622994] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[   13.690744] [brand] average_on_die_temperature,k3v2[35]
+<6>[   13.690900] 
+<6>[   13.810491] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   13.810824] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[   13.997738] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   13.998001] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[   14.184958] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[   14.185151] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   14.185403] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[   14.372423] [NVE] nve_open_ex: no valid NVM.
+<4>[   14.372576] <<-GTP-ERROR->> get_cfg_from_nve:read nv fail!
+<4>[   14.372737] 
+<6>[   14.372812] [NVE][nve_direct_access] Access NVE1 items[514].
+<6>[   14.373002] [NVE] nve->nve_partition_count = 0x8.
+<6>[   14.373165] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   14.373414] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[   14.560854] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   14.561110] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[   14.694066] [brand] average_on_die_temperature,k3v2[35]
+<6>[   14.694221] 
+<6>[   14.747848] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   14.748107] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[   14.935178] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   14.935438] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[   15.122365] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   15.122627] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[   15.309689] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   15.309950] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[   15.496834] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   15.497098] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[   15.684456] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[   15.684648] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   15.684898] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<6>[   15.697392] [brand] average_on_die_temperature,k3v2[35]
+<6>[   15.697546] 
+<3>[   15.872309] [NVE] nve_open_ex: no valid NVM.
+<4>[   15.872463] <<-GTP-ERROR->> get_sensorid_from_nve:read nv fail!
+<4>[   15.872637] 
+<4>[   15.873022] <<-GTP-INFO->> SENSOR ID:5
+<6>[   15.891829] input: goodix-ts as /devices/virtual/input/input5
+<4>[   15.893295] <<-GTP-INFO->> GTP works in interrupt mode.
+<4>[   15.893946] <<-GTP-INFO->> IC VERSION:9280_1040
+<4>[   15.894274] <<-GTP-INFO->> Applied memory size:2562.
+<4>[   15.894502] <<-GTP-INFO->> Create proc entry success!
+<4>[   15.894664] <<-GTP-INFO->> Esd started
+<6>[   15.895633] rtc-pl031 pl061-rtc: setting system clock to 2026-08-29 14:24:06 UTC (1788013446)
+<5>[   15.896422] uart-pl011 amba-uart.0: pl011 startup.
+<6>[   15.896900] Freeing init memory: 208K
+<5>[   15.901287] uart-pl011 amba-uart.0: pl011_shutdown.
+<3>[   15.908046] init: /init.rc: 336: invalid command 'custsymlinkfile'
+<3>[   15.908200] init: /init.rc: 337: invalid command 'custsymlink'
+<3>[   15.908337] init: /init.rc: 338: invalid command 'custsymlink'
+<3>[   15.908473] init: /init.rc: 339: invalid command 'custsymlink'
+<3>[   15.908606] init: /init.rc: 340: invalid command 'custsymlink'
+<3>[   15.908739] init: /init.rc: 341: invalid command 'custsymlink'
+<3>[   15.908872] init: /init.rc: 342: invalid command 'custsymlink'
+<3>[   15.909004] init: /init.rc: 343: invalid command 'custsymlink'
+<3>[   15.909137] init: /init.rc: 344: invalid command 'custsymlink'
+<3>[   15.909270] init: /init.rc: 345: invalid command 'custsymlink'
+<3>[   15.909402] init: /init.rc: 346: invalid command 'custsymlink'
+<3>[   15.909535] init: /init.rc: 347: invalid command 'custsymlink'
+<3>[   15.909668] init: /init.rc: 348: invalid command 'custsymlink'
+<3>[   15.912089] init: /init.hwt101.rc: 443: invalid option 'mkdir'
+<3>[   15.912187] init: /init.hwt101.rc: 444: invalid option 'mkdir'
+<3>[   15.912280] init: /init.hwt101.rc: 447: invalid option 'insmod'
+<3>[   15.912373] init: /init.hwt101.rc: 450: invalid option 'chmod'
+<4>[   15.912735] init (1): /proc/1/oom_adj is deprecated, please use /proc/1/oom_score_adj instead.
+<4>[   15.951306]  Actually vol=3988  cunt 3,sum 11904, vol 3968, ---->3
+<4>[   15.951398]  
+<1>[   15.951432] read current result = 180 mA
+<1>[   15.955647] read current result = 180 mA
+<4>[   16.062884] CPU1: Booted secondary processor
+<6>[   16.062974] k3v2 irqaffinity irq 36 register irq to cpu 1
+<2>[   16.063081] CPU1: Unknown IPI message 0x1
+<3>[   16.063145] [k3v2_cpu_init] 1254 cpu=1
+<6>[   16.067256] Switched to NOHz mode on CPU #1
+<5>[   16.087443] uart-pl011 amba-uart.0: pl011 startup.
+<5>[   16.087607] uart-pl011 amba-uart.0: pl011_shutdown.
+<6>[   16.181957] [NVE][nve_open]:enter.
+<6>[   16.182014] [NVE][nve_open_ex]:NV has been initialized!
+<6>[   16.182097] [NVE][nve_close]:enter.
+<6>[   16.182172] [NVE][nve2_open]:enter.
+<6>[   16.182234] [NVE] nve->nve_partition_count = 0x8.
+<6>[   16.182306] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   16.182422] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[   16.351671] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   16.351838] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[   16.522910] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   16.523076] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[   16.693886] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   16.694095] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[   16.700675] [brand] average_on_die_temperature,k3v2[35]
+<6>[   16.700776] 
+<6>[   16.864976] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   16.865143] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[   17.036139] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   17.036306] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[   17.206703] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   17.206870] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<7>[   17.377490] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[   17.377611] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   17.377772] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<3>[   17.548867] [NVE] nve_open_ex: no valid NVM.
+<6>[   17.549006] [NVE][nve2_open]:enter.
+<6>[   17.549093] [NVE] nve->nve_partition_count = 0x8.
+<6>[   17.549197] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   17.549358] [NVE][nve_get_phy_addr]: find phy index[1] for index[1].
+<6>[   17.704071] [brand] average_on_die_temperature,k3v2[35]
+<6>[   17.704226] 
+<6>[   17.728620] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   17.728879] [NVE][nve_get_phy_addr]: find phy index[2] for index[2].
+<6>[   17.917070] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   17.917402] [NVE][nve_get_phy_addr]: find phy index[3] for index[3].
+<6>[   18.105612] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   18.105873] [NVE][nve_get_phy_addr]: find phy index[4] for index[4].
+<6>[   18.292995] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   18.293256] [NVE][nve_get_phy_addr]: find phy index[5] for index[5].
+<6>[   18.482146] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   18.482409] [NVE][nve_get_phy_addr]: find phy index[8] for index[6].
+<6>[   18.671005] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   18.671267] [NVE][nve_get_phy_addr]: find phy index[9] for index[7].
+<6>[   18.707399] [brand] average_on_die_temperature,k3v2[35]
+<6>[   18.707554] 
+<7>[   18.859979] [NVE][nve_find_valid_partition]current_id = -1.
+<6>[   18.860172] [NVE][nve_get_phy_addr]: mtd 0xdd043c00, mtd->priv 0x0, mtd->size 0x2000000.
+<6>[   18.860423] [NVE][nve_get_phy_addr]: find phy index[0] for index[0].
+<4>[   18.877403] <<-GTP-INFO->> /cust Mounted!
+<3>[   19.048094] [NVE] nve_open_ex: no valid NVM.
+<4>[   19.048490] lby yaffs2_mount
+<6>[   19.048753] yaffs: dev is 32505856 name is "mtdblock0" rw
+<6>[   19.048926] yaffs: passed flags ""
+<7>[   19.049053] yaffs: yaffs: Attempting MTD mount of 31.0,"mtdblock0"
+<7>[   19.049246] yaffs:  mtd dd041400
+<7>[   19.049356] yaffs:  erase c030cb98
+<7>[   19.049467] yaffs:  read c030cf94
+<7>[   19.049577] yaffs:  write c030c914
+<7>[   19.049689] yaffs:  readoob c030d40c
+<7>[   19.049805] yaffs:  writeoob c030ca3c
+<7>[   19.049924] yaffs:  block_isbad c030ce60
+<7>[   19.050049] yaffs:  block_markbad c030ceb0
+<7>[   19.050182] yaffs:  writesize 8192
+<7>[   19.050295] yaffs:  oobsize 448
+<7>[   19.050396] yaffs:  erasesize 2097152
+<7>[   19.050473] yaffs:  size 1073741824
+<4>[   19.050554] yaffs: param no_tags_ecc=1, inband_tags=0
+<7>[   19.050825] yaffs: find next checkpt block: start:  blocks 0 next 1, end 512, max 33
+<7>[   19.078900] yaffs: checking block 47 bad
+<7>[   19.139266] yaffs: yaffs_read_super: is_checkpointed 1
+<4>[   19.139933] lby yaffs2_mount
+<6>[   19.140095] yaffs: dev is 32505857 name is "mtdblock1" rw
+<6>[   19.140205] yaffs: passed flags ""
+<7>[   19.140283] yaffs: yaffs: Attempting MTD mount of 31.1,"mtdblock1"
+<7>[   19.140409] yaffs:  mtd dd041c00
+<7>[   19.140480] yaffs:  erase c030cb98
+<7>[   19.140553] yaffs:  read c030cf94
+<7>[   19.140667] yaffs:  write c030c914
+<7>[   19.140741] yaffs:  readoob c030d40c
+<7>[   19.140917] yaffs:  writeoob c030ca3c
+<7>[   19.140999] yaffs:  block_isbad c030ce60
+<7>[   19.141081] yaffs:  block_markbad c030ceb0
+<7>[   19.141168] yaffs:  writesize 8192
+<7>[   19.141241] yaffs:  oobsize 448
+<7>[   19.141308] yaffs:  erasesize 2097152
+<7>[   19.141384] yaffs:  size 268435456
+<4>[   19.141468] yaffs: param no_tags_ecc=1, inband_tags=0
+<7>[   19.141667] yaffs: find next checkpt block: start:  blocks 0 next 1, end 128, max 9
+<7>[   19.142585] yaffs: checking block 0 bad
+<7>[   19.145419] yaffs: yaffs_read_super: is_checkpointed 1
+<4>[   19.145621] lby yaffs2_mount
+<6>[   19.145763] yaffs: dev is 32505858 name is "mtdblock2" rw
+<6>[   19.145874] yaffs: passed flags ""
+<7>[   19.145952] yaffs: yaffs: Attempting MTD mount of 31.2,"mtdblock2"
+<7>[   19.146077] yaffs:  mtd dd042400
+<7>[   19.146147] yaffs:  erase c030cb98
+<7>[   19.146219] yaffs:  read c030cf94
+<7>[   19.146290] yaffs:  write c030c914
+<7>[   19.146362] yaffs:  readoob c030d40c
+<7>[   19.146437] yaffs:  writeoob c030ca3c
+<7>[   19.146513] yaffs:  block_isbad c030ce60
+<7>[   19.146595] yaffs:  block_markbad c030ceb0
+<7>[   19.146680] yaffs:  writesize 8192
+<7>[   19.146752] yaffs:  oobsize 448
+<7>[   19.146820] yaffs:  erasesize 2097152
+<7>[   19.146896] yaffs:  size 536870912
+<4>[   19.146975] yaffs: param no_tags_ecc=1, inband_tags=0
+<7>[   19.147173] yaffs: find next checkpt block: start:  blocks 0 next 1, end 256, max 17
+<7>[   19.147964] yaffs: checking block 0 bad
+<7>[   19.159530] yaffs: yaffs_read_super: is_checkpointed 1
+<4>[   19.159690] lby yaffs2_mount
+<6>[   19.159782] yaffs: dev is 32505859 name is "mtdblock3" rw
+<6>[   19.159862] yaffs: passed flags ""
+<7>[   19.159917] yaffs: yaffs: Attempting MTD mount of 31.3,"mtdblock3"
+<7>[   19.160009] yaffs:  mtd dd042c00
+<7>[   19.160059] yaffs:  erase c030cb98
+<7>[   19.160112] yaffs:  read c030cf94
+<7>[   19.160164] yaffs:  write c030c914
+<7>[   19.160217] yaffs:  readoob c030d40c
+<7>[   19.160272] yaffs:  writeoob c030ca3c
+<7>[   19.160328] yaffs:  block_isbad c030ce60
+<7>[   19.160387] yaffs:  block_markbad c030ceb0
+<7>[   19.160450] yaffs:  writesize 8192
+<7>[   19.160503] yaffs:  oobsize 448
+<7>[   19.160553] yaffs:  erasesize 2097152
+<7>[   19.160634] yaffs:  size 536870912
+<4>[   19.160692] yaffs: param no_tags_ecc=1, inband_tags=0
+<7>[   19.160827] yaffs: find next checkpt block: start:  blocks 0 next 1, end 256, max 17
+<7>[   19.161590] yaffs: checking block 0 bad
+<7>[   19.164729] yaffs: yaffs_read_super: is_checkpointed 1
+<4>[   19.164879] lby yaffs2_mount
+<6>[   19.164984] yaffs: dev is 32505860 name is "mtdblock4" rw
+<6>[   19.165074] yaffs: passed flags ""
+<7>[   19.165137] yaffs: yaffs: Attempting MTD mount of 31.4,"mtdblock4"
+<7>[   19.165240] yaffs:  mtd dd043400
+<7>[   19.165297] yaffs:  erase c030cb98
+<7>[   19.165356] yaffs:  read c030cf94
+<7>[   19.165414] yaffs:  write c030c914
+<7>[   19.165474] yaffs:  readoob c030d40c
+<7>[   19.165536] yaffs:  writeoob c030ca3c
+<7>[   19.165599] yaffs:  block_isbad c030ce60
+<7>[   19.165665] yaffs:  block_markbad c030ceb0
+<7>[   19.165735] yaffs:  writesize 8192
+<7>[   19.165794] yaffs:  oobsize 448
+<7>[   19.165850] yaffs:  erasesize 2097152
+<7>[   19.165914] yaffs:  size 5425332224
+<4>[   19.165980] yaffs: param no_tags_ecc=1, inband_tags=0
+<7>[   19.166191] yaffs: find next checkpt block: start:  blocks 0 next 1, end 2587, max 163
+<7>[   19.166996] yaffs: checking block 0 bad
+<7>[   19.372742] yaffs: yaffs_read_super: is_checkpointed 0
+<4>[   19.580669] bq_bci_battery_work 938 in ----->
+<1>[   19.580767] read health result = 0 
+<4>[   19.584642] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   19.584724]  
+<6>[   19.590442] [EMF_TEST] Current Vsys = 4003, Vbat = 3984, dv=19
+<3>[   19.590529] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   19.590644] [EMF TEST]Ipa = 0, Besides Epa, E = 3929 
+<6>[   19.590720] [EMF TEST]Current Vbat = 3984 Vsys = 4003 dV = 19 EMF = 3929
+<6>[   19.590815] [EMF TEST]Average Vbat = 3984 Vsys = 4003 dV = 19 EMF = 3900
+<6>[   19.590920] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3900
+<6>[   19.591014] [EMF_TEST]Capacity = 66 before tiny jump
+<6>[   19.591084] [EMF_TEST]pre_capacity = 65
+<6>[   19.591141] [EMF TEST]CHARGE Tiny jump!                    timer = 3
+<6>[   19.591230] [EMF_TEST]capacity = 65
+<1>[   19.591281] read capactiylevel result = 65 
+<1>[   19.595543] bqdemon_battery_capacity_level 2109 read capactiylevel status = 3 
+<4>[   19.603267] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   19.603351]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   19.603720]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   19.604031]   Actually vol=3986  cunt 4,sum 15890, vol 3972, ---->4
+<4>[   19.604402]  
+<6>[   19.610745] [EMF_TEST] Current Vsys = 4001, Vbat = 3983, dv=18
+<3>[   19.610829] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   19.610924] [EMF TEST]Ipa = 0, Besides Epa, E = 3931 
+<6>[   19.611113] [EMF TEST]Current Vbat = 3983 Vsys = 4001 dV = 18 EMF = 3931
+<6>[   19.611209] [EMF TEST]Average Vbat = 3983 Vsys = 4001 dV = 18 EMF = 3902
+<6>[   19.611304] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3902
+<6>[   19.611395] [EMF_TEST]Capacity = 66 before tiny jump
+<6>[   19.611467] [EMF_TEST]pre_capacity = 65
+<6>[   19.611524] [EMF TEST]CHARGE Tiny jump!                    timer = 2
+<6>[   19.611725] [EMF_TEST]capacity = 65
+<6>[   19.611778] [EMF TEST]curr_capacity = 65bq_bci_battery_work 959 OUT -----<<
+<4>[   19.612210]  Actually vol=3986  cunt 5,sum 19876, vol 3975, ---->5
+<4>[   19.612300]  
+<1>[   19.612450] read current result = 180 mA
+<1>[   19.616559] read current result = 180 mA
+<6>[   19.710699] [brand] average_on_die_temperature,k3v2[35]
+<6>[   19.710801] 
+<6>[   19.784434] Compat-wireless backport release: ol_r8.a3.10
+<6>[   19.784548] Backport based on wl18xx.git ol_r8.a3.14
+<6>[   19.784650] compat.git: wl18xx.git
+<6>[   19.821955] Bluetooth: Core ver 2.16
+<6>[   19.822240] NET: Registered protocol family 31
+<6>[   19.822308] Bluetooth: HCI device and connection manager initialized
+<6>[   19.822401] Bluetooth: HCI socket layer initialized
+<6>[   19.822473] Bluetooth: L2CAP socket layer initialized
+<6>[   19.822560] Bluetooth: SCO socket layer initialized
+<6>[   19.828526] Bluetooth: RFCOMM TTY layer initialized
+<6>[   19.828601] Bluetooth: >>>> l2cap_chan_hold chan=DCBA4200 refcnt=2
+<6>[   19.828706] Bluetooth: RFCOMM socket layer initialized
+<6>[   19.828781] Bluetooth: RFCOMM ver 1.11
+<6>[   19.831832] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
+<6>[   19.833453] Bluetooth: Bluetooth Driver for TI WiLink - Version 1.0
+<6>[   19.834415] (stc): st_register(4) 
+<6>[   19.834477] (stc):  chnl_id list empty :4 
+<6>[   19.834538] (stk) : st_kim_start
+<6>[   19.834589] plat_chip_enable
+<6>[   19.834637] (stk) :set mux normal mode======>
+<6>[   19.850122] Bluetooth: BNEP (Ethernet Emulation) ver 1.3
+<6>[   19.850203] Bluetooth: BNEP filters: protocol multicast
+<6>[   19.851532] Bluetooth: Bluetooth Driver for TI Bluesleep - Version 1.0
+<6>[   19.851705] Bluetooth: bluesleep_probe
+<6>[   19.851790]  host_wake irq  322
+<6>[   19.851838]  host_wake irq  322
+<6>[   19.851902] bluesleep_hostwake_isr
+<3>[   19.858831] init: ###################### /cust/cust.prop  not exist
+<6>[   19.948531] (stk) :GPIO 169 -- triggered
+<6>[   19.948595] (stk) :GPIO 169 status 1
+<6>[   19.948648] (stk) :ldisc_install = 1[K3_V4L2]INFO: enter k3_v4l2_open
+<4>[   19.950538] [K3_CAM_DBG]INFO: cam_dbg_info.dbg_isp_base_addr=0xfe014000
+<4>[   19.950886] [K3_ISPV1]INFO: enable isp clock
+<4>[   19.950954] [K3_ISPV1]INFO: CS_CHIP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+<4>[   19.965453] [K3_ISPV1]INFO: COMMAND_FINISHED, cmdid[255]
+<4>[   19.965535] [K3_ISPV1]INFO: ispv1_poweron success, clk divider is 0x44
+<4>[   19.965647] [K3_V4L2]INFO: enter k3_v4l2_close
+<5>[   20.537144] uart-pl011 amba-uart.4: pl011 startup.
+<3>[   20.563756] init: cannot execve('/system/bin/supl20clientd'): Permission denied
+<6>[   20.590356] (stc): st_tty_open 
+<6>[   20.590492] (stk) : line discipline installed 
+<6>[   20.590977] (stk) :TIInit_12.8.32.bts
+<3>[   20.609753] init: cannot find '/system/bin/glgps', disabling 'gpsd'
+<6>[   20.717084] [brand] average_on_die_temperature,k3v2[36]
+<6>[   20.719628] [K3_V4L2]INFO: enter k3_v4l2_open
+<4>[   21.006694] [K3_CAM_DBG]INFO: cam_dbg_info.dbg_isp_base_addr=0xfe014000
+<4>[   21.007103] [K3_ISPV1]INFO: enable isp clock
+<4>[   21.007186] [K3_ISPV1]INFO: CS_CHIP!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+<4>[   21.025811] [K3_ISPV1]INFO: COMMAND_FINISHED, cmdid[255]
+<4>[   21.026072] [K3_ISPV1]INFO: ispv1_poweron success, clk divider is 0x44
+<4>[   21.026189] [K3_V4L2]INFO: enter k3_v4l2_close
+<3>[   21.117439] init: untracked pid 1672 exited
+<3>[   21.117533] init: untracked pid 1683 exited
+<3>[   21.394144] init: untracked pid 1661 exited
+<3>[   21.394281] init: untracked pid 1663 exited
+<3>[   21.394372] init: untracked pid 1695 exited
+<3>[   21.394466] init: untracked pid 1697 exited
+<6>[   21.461889] cfg80211: Calling CRDA to update world regulatory domain
+<3>[   21.462477] init: untracked pid 1678 exited
+<3>[   21.462578] init: untracked pid 1749 exited
+<3>[   21.462665] init: untracked pid 1750 exited
+<6>[   21.617320] warning: `rild' uses 32-bit capabilities (legacy support in use)
+<6>[   21.720709] [brand] average_on_die_temperature,k3v2[36]
+<6>[   21.720794] 
+<3>[   21.794770] init: untracked pid 1767 exited
+<6>[   21.871479] (stc): add_channel_to_table: id 4
+<6>[   21.871548] (stc): st_register(2) 
+<6>[   21.871603] (stc): add_channel_to_table: id 2
+<6>[   21.871668] (stc): st_register(3) 
+<6>[   21.871721] (stc): add_channel_to_table: id 3
+<6>[   21.880240] bluesleep_hci_event
+<6>[   21.880295] HCI_DEV_UP
+<6>[   21.895592] wlcore: wl18xx driver version: 
+<6>[   21.956315] [NVE][nve_open]:enter.
+<6>[   21.956375] [NVE][nve_open_ex]:NV has been initialized!
+<6>[   21.956461] [NVE][nve_ioctl] Access NVE0 items[101].
+<4>[   21.956536] [NVE]Bad parameter,inputed NV length is 0,will be reassigned according to NV inedx table
+<6>[   21.956771] [NVE][nve_close]:enter.
+<5>[   22.007660] uart-pl011 amba-uart.2: pl011 startup.
+<5>[   22.007855] uart-pl011 amba-uart.2: pl011_shutdown.
+<5>[   22.054443] uart-pl011 amba-uart.3: pl011 startup.
+<5>[   22.054732] uart-pl011 amba-uart.3: pl011_shutdown.
+<3>[   22.237975] init: using deprecated syntax for specifying property 'persist.sys.usb.config', use ${name} instead
+<6>[   22.238258] [NVE][nve_direct_access] Access NVE0 items[311].
+<6>[   22.238343] [NVE][nve_open_ex]:NV has been initialized!
+<6>[   22.238420] [NVE][nve_direct_access]valid items 0x133
+<3>[   22.238494] [NVE][nve_direct_access] NV items[311] is not defined, nve_header->valid_items is 307.
+<3>[   22.238617] usb_read_nv: read nv partion failed
+<3>[   22.238682] ::zhangchao::get a invalid value from nv!
+<3>[   22.238757] android_usb: already disabled
+<3>[   22.238990] init: using deprecated syntax for specifying property 'ro.serialno', use ${name} instead
+<3>[   22.239206] init: using deprecated syntax for specifying property 'sys.usb.config', use ${name} instead
+<6>[   22.239443] [NVE][nve_direct_access] Access NVE0 items[311].
+<6>[   22.239525] [NVE][nve_open_ex]:NV has been initialized!
+<6>[   22.239602] [NVE][nve_direct_access]valid items 0x133
+<3>[   22.239690] [NVE][nve_direct_access] NV items[311] is not defined, nve_header->valid_items is 307.
+<3>[   22.239829] usb_read_nv: read nv partion failed
+<3>[   22.239899] ::zhangchao::get a invalid value from nv!
+<6>[   22.239999] dual speed mtp: IN/ep1in, OUT/ep2out
+<6>[   22.240067] adb_bind_config
+<6>[   22.240116] dual speed adb: IN/ep3in, OUT/ep3out
+<6>[   22.240242] [hiusb]allow_connect and powered on, is_on: 1
+<3>[   22.240724] init: using deprecated syntax for specifying property 'sys.usb.config', use ${name} instead
+<6>[   22.242195] adb_open
+<6>[   22.340898] android_work: did not send uevent (0 0   (null))
+<6>[   22.429107] android_work: sent uevent USB_STATE=CONNECTED
+<6>[   22.459559] android_work: sent uevent USB_STATE=CONFIGURED
+<6>[   22.723984] [brand] average_on_die_temperature,k3v2[36]
+<6>[   22.724058] 
+<6>[   22.878413] plat_chip_asleep
+<6>[   23.727353] [brand] average_on_die_temperature,k3v2[36]
+<6>[   23.727457] 
+<6>[   23.880656] bluesleep_hci_event
+<6>[   23.880717] HCI_DEV_DOWN
+<6>[   23.880780] (stc): remove_channel_from_table: id 3
+<6>[   23.880863] (stc): remove_channel_from_table: id 2
+<6>[   23.880944] (stc): remove_channel_from_table: id 4
+<6>[   23.881025] (stc):  all chnl_ids unregistered 
+<6>[   23.881138] (stk) :ldisc_install = 0
+<5>[   23.881486] uart-pl011 amba-uart.4: pl011_shutdown.
+<6>[   23.881690] (stc): st_tty_close 
+<6>[   23.881796] bluesleep_hostwake_isr
+<6>[   23.883783] plat_chip_disable
+<6>[   24.730729] [brand] average_on_die_temperature,k3v2[36]
+<6>[   24.730803] 
+<5>[   24.951475] hdmi-hw[I]:hw_support_mhl:2214: this device don't support mhl.
+<5>[   24.951601] hdmi[I]:enable_hpd:89: set video power 1 (1:MIN 2:FULL).
+<5>[   24.951701] hdmi[I]:hdmi_pw_set_power:957: power chg: (video:0,suspend:0,state:0)->(video:1,suspend:0) power_need:1(0:OFF 1:MIN 2:FULL)
+<5>[   24.952132] hdmi-hw[I]:hw_support_mhl:2214: this device don't support mhl.
+<6>[   24.962431] [k3fb]k3_fb1_blank: index=1, enter!
+<4>[   24.962532] ==ouyangxun ldi_on 
+<6>[   24.962634] [k3fb]k3_fb1_blank: index=1, exit!
+<5>[   24.962773] hdmi[I]:hdmi_irq_work_queue:1119: irq: 0x00000002(1:connected 2:disconnected 8:first hpd), state: 1(0:disable, 1:active, 2:suspend), power: 1/1(0:off, 1:min, 2:full).
+<5>[   24.962988] action: 2(1:connect, 2:disconnect), connected: 0, reset: 0.
+<6>[   25.740673] [brand] average_on_die_temperature,k3v2[36]
+<6>[   25.740761] 
+<6>[   26.744202] [brand] average_on_die_temperature,k3v2[37]
+<6>[   26.744307] 
+<6>[   27.747354] [brand] average_on_die_temperature,k3v2[36]
+<6>[   27.747457] 
+<6>[   28.750717] [brand] average_on_die_temperature,k3v2[37]
+<6>[   28.750793] bq_bci_battery_work 938 in ----->
+<1>[   29.607342] read health result = 0 
+<4>[   29.611196] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   29.611281]  
+<6>[   29.616898] [EMF_TEST] Current Vsys = 4001, Vbat = 3983, dv=18
+<3>[   29.616987] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   29.617083] [EMF TEST]Ipa = 0, Besides Epa, E = 3931 
+<6>[   29.617159] [EMF TEST]Current Vbat = 3983 Vsys = 4001 dV = 18 EMF = 3931
+<6>[   29.617280] [EMF TEST]Average Vbat = 3983 Vsys = 4001 dV = 18 EMF = 3904
+<6>[   29.617378] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3904
+<6>[   29.617473] [EMF_TEST]Capacity = 67 before tiny jump
+<6>[   29.617546] [EMF_TEST]pre_capacity = 65
+<6>[   29.617604] [EMF TEST]CHARGE Tiny jump!                    timer = 1
+<6>[   29.617694] [EMF_TEST]capacity = 65
+<1>[   29.617747] read capactiylevel result = 65 
+<1>[   29.631077] bqdemon_battery_capacity_level 2109 read capactiylevel status = 3 
+<4>[   29.639196] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   29.639284]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   29.639672]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   29.640050]   Actually vol=3970  cunt 6,sum 23846, vol 3974, ---->6
+<4>[   29.640429]  
+<6>[   29.645917] [EMF_TEST] Current Vsys = 3994, Vbat = 3978, dv=16
+<3>[   29.646008] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   29.646103] [EMF TEST]Ipa = 0, Besides Epa, E = 3932 
+<6>[   29.646177] [EMF TEST]Current Vbat = 3978 Vsys = 3994 dV = 16 EMF = 3932
+<6>[   29.646274] [EMF TEST]Average Vbat = 3978 Vsys = 3994 dV = 16 EMF = 3905
+<6>[   29.646369] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3905
+<6>[   29.646462] [EMF_TEST]Capacity = 67 before tiny jump
+<6>[   29.646535] [EMF_TEST]pre_capacity = 65
+<6>[   29.646593] [EMF_TEST]capacity = 66
+<6>[   29.646646] [EMF TEST]curr_capacity = 66bq_bci_battery_work 959 OUT -----<<
+<4>[   29.647108]  Actually vol=3976  cunt 7,sum 27822, vol 3974, ---->7
+<4>[   29.647200]  
+<1>[   29.647272] read current result = 180 mA
+<1>[   29.651297] read current result = 180 mA
+<6>[   29.753963] [brand] average_on_die_temperature,k3v2[38]
+<6>[   29.754036] 
+<6>[   30.757328] [brand] average_on_die_temperature,k3v2[38]
+<6>[   30.757414] 
+<6>[   31.760664] [brand] average_on_die_temperature,k3v2[37]
+<6>[   31.760756] 
+<6>[   32.763958] [brand] average_on_die_temperature,k3v2[37]
+<6>[   32.764032] 
+<6>[   33.127309] SR UNLOCK
+<6>[   33.767286] [brand] average_on_die_temperature,k3v2[37]
+<6>[   33.767372] 
+<6>[   34.770612] [brand] average_on_die_temperature,k3v2[37]
+<6>[   34.770699] 
+<3>[   35.029161] init: untracked pid 2502 exited
+<6>[   35.773947] [brand] average_on_die_temperature,k3v2[38]
+<6>[   35.774034] 
+<3>[   36.211626] init: untracked pid 1692 exited
+<6>[   36.777294] [brand] average_on_die_temperature,k3v2[39]
+<6>[   36.777369] CPU2: Booted secondary processor
+<6>[   37.761633] k3v2 irqaffinity irq 37 register irq to cpu 2
+<2>[   37.761761] CPU2: Unknown IPI message 0x1
+<3>[   37.761834] [k3v2_cpu_init] 1254 cpu=2
+<6>[   37.765968] Switched to NOHz mode on CPU #2
+<6>[   37.787278] [brand] average_on_die_temperature,k3v2[39]
+<6>[   37.787371] 
+<6>[   38.790602] [brand] average_on_die_temperature,k3v2[39]
+<6>[   38.790688] 
+<3>[   39.004997] [k3v2_cpu_exit] 1352 cpu=2
+<5>[   39.005487] CPU2: shutdown
+<4>[   39.660650] bq_bci_battery_work 938 in ----->
+<1>[   39.660767] read health result = 0 
+<4>[   39.665590] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   39.665681]  
+<6>[   39.671947] [EMF_TEST] Current Vsys = 4000, Vbat = 3983, dv=17
+<3>[   39.672039] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   39.672148] [EMF TEST]Ipa = 0, Besides Epa, E = 3934 
+<6>[   39.672223] [EMF TEST]Current Vbat = 3983 Vsys = 4000 dV = 17 EMF = 3934
+<6>[   39.672319] [EMF TEST]Average Vbat = 3983 Vsys = 4000 dV = 17 EMF = 3906
+<6>[   39.672413] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3906
+<6>[   39.672507] [EMF_TEST]Capacity = 67 before tiny jump
+<6>[   39.672578] [EMF_TEST]pre_capacity = 66
+<6>[   39.672635] [EMF TEST]CHARGE Tiny jump!                    timer = 5
+<6>[   39.672725] [EMF_TEST]capacity = 66
+<1>[   39.672778] read capactiylevel result = 66 
+<1>[   39.677066] bqdemon_battery_capacity_level 2109 read capactiylevel status = 3 
+<4>[   39.685008] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   39.685092]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   39.685478]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   39.686310]   Actually vol=3984  cunt 8,sum 31806, vol 3975, ---->8
+<4>[   39.686728]  
+<6>[   39.693938] [EMF_TEST] Current Vsys = 4007, Vbat = 3989, dv=18
+<3>[   39.694029] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   39.694126] [EMF TEST]Ipa = 0, Besides Epa, E = 3937 
+<6>[   39.694200] [EMF TEST]Current Vbat = 3989 Vsys = 4007 dV = 18 EMF = 3937
+<6>[   39.694297] [EMF TEST]Average Vbat = 3989 Vsys = 4007 dV = 18 EMF = 3908
+<6>[   39.694393] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3908
+<6>[   39.694623] [EMF_TEST]Capacity = 67 before tiny jump
+<6>[   39.694696] [EMF_TEST]pre_capacity = 66
+<6>[   39.694753] [EMF TEST]CHARGE Tiny jump!                    timer = 4
+<6>[   39.694843] [EMF_TEST]capacity = 66
+<6>[   39.694899] [EMF TEST]curr_capacity = 66bq_bci_battery_work 959 OUT -----<<
+<4>[   39.695337]  Actually vol=3994  cunt 9,sum 35800, vol 3977, ---->9
+<4>[   39.695431]  
+<1>[   39.695466] read current result = 180 mA
+<1>[   39.699612] read current result = 180 mA
+<6>[   39.793958] [brand] average_on_die_temperature,k3v2[38]
+<6>[   39.794062] 
+<6>[   40.797291] [brand] average_on_die_temperature,k3v2[39]
+<6>[   40.797395] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   41.661065]   Actually vol=3990  cunt 10,sum 39790, vol 3979, ---->10
+<4>[   41.661562]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   41.662050]  
+<6>[   41.668765] [EMF_TEST] Current Vsys = 4006, Vbat = 3988, dv=18
+<3>[   41.668892] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   41.669028] [EMF TEST]Ipa = 0, Besides Epa, E = 3936 
+<6>[   41.669136] [EMF TEST]Current Vbat = 3988 Vsys = 4006 dV = 18 EMF = 3936
+<6>[   41.669272] [EMF TEST]Average Vbat = 3988 Vsys = 4006 dV = 18 EMF = 3909
+<6>[   41.669408] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3909
+<6>[   41.669541] [EMF_TEST]Capacity = 67 before tiny jump
+<6>[   41.669642] [EMF_TEST]pre_capacity = 66
+<6>[   41.669724] [EMF TEST]CHARGE Tiny jump!                    timer = 3
+<6>[   41.669850] [EMF_TEST]capacity = 66
+<4>[   41.670683]  Actually vol=3998  cunt 11,sum 43788, vol 3980, ---->11
+<4>[   41.670818]  
+<1>[   41.670874] read current result = 180 mA
+<1>[   41.675353] read current result = 180 mA
+<6>[   41.685781] [EMF_TEST] Current Vsys = 4003, Vbat = 3984, dv=19
+<3>[   41.685872] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   41.685972] [EMF TEST]Ipa = 0, Besides Epa, E = 3929 
+<6>[   41.686051] [EMF TEST]Current Vbat = 3984 Vsys = 4003 dV = 19 EMF = 3929
+<6>[   41.686151] [EMF TEST]Average Vbat = 3984 Vsys = 4003 dV = 19 EMF = 3910
+<6>[   41.686263] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3910
+<6>[   41.686362] [EMF_TEST]Capacity = 67 before tiny jump
+<6>[   41.686437] [EMF_TEST]pre_capacity = 66
+<6>[   41.686497] [EMF TEST]CHARGE Tiny jump!                    timer = 2
+<6>[   41.686590] [EMF_TEST]capacity = 66
+<1>[   41.686646] is_bqdemon_battery_full=0 charge 2
+<3>[   41.692491] bq2419x_charger 1-006b: CHARGER STATUS 80
+<6>[   41.800582] [brand] average_on_die_temperature,k3v2[38]
+<6>[   41.800657] 
+<6>[   42.803916] [brand] average_on_die_temperature,k3v2[39]
+<6>[   42.803993] 
+<6>[   43.808371] [brand] average_on_die_temperature,k3v2[38]
+<6>[   43.808474]  Actually vol=3994  cunt 12,sum 47782, vol 3981, ---->12
+<4>[   44.240678]  ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   44.256979]   attr_set_enable: val=1
+<3>[   44.355283] init: no such service 'hciattach'
+<6>[   44.355506] (stc): st_register(4) 
+<6>[   44.355683] (stc):  chnl_id list empty :4 
+<6>[   44.355749] (stk) : st_kim_start
+<6>[   44.356801] plat_chip_enable
+<6>[   44.356975] (stk) :set mux normal mode======>
+<6>[   44.503402] (stk) :GPIO 169 -- triggered
+<6>[   44.503468] (stk) :GPIO 169 status 1
+<6>[   44.503524] (stk) :ldisc_install = 1
+<5>[   44.503964] uart-pl011 amba-uart.4: pl011 startup.
+<4>[   44.504928] CPU2: Booted secondary processor
+<6>[   44.505016] k3v2 irqaffinity irq 37 register irq to cpu 2
+<2>[   44.505122] CPU2: Unknown IPI message 0x1
+<3>[   44.505189] [k3v2_cpu_init] 1254 cpu=2
+<6>[   44.509300] Switched to NOHz mode on CPU #2
+<6>[   44.554854] (stc): st_tty_open 
+<6>[   44.554951] (stk) : line discipline installed 
+<6>[   44.555352] (stk) :TIInit_12.8.32.btsconfig wifi&sdio block: wl1271_init
+<4>[   44.664564] set wifi_block mode:0, ret:0
+<6>[   44.664727] [hi_mci.3][mshci_hi_set_ios]:set io to normal
+<4>[   44.664854] TI WL18XX: Powering on WiFi
+<7>[   44.777773] mmc1: CMD 52(arg=0xc00) REP time out
+<7>[   44.778208] mmc1: CMD 52(arg=0x80000c08) REP time out
+<7>[   44.781843] mmc1: CMD 8(arg=0xaa) REP time out
+<3>[   44.784381] mmc1: CCCR structure version: 3
+<6>[   44.796478] [hi_mci.3][mshci_hi_set_ios]:set io to lowpower
+<4>[   44.796592] TI WL18XX: Powering off WiFi
+<6>[   44.796713] [hi_mci.3][mshci_hi_set_ios]:set io to normal
+<4>[   44.796801] TI WL18XX: Powering on WiFi
+<6>[   44.810569] [brand] average_on_die_temperature,k3v2[39]
+<6>[   44.810645] 
+<7>[   44.911080] mmc1: CMD 52(arg=0xc00) REP time out
+<7>[   44.911498] mmc1: CMD 52(arg=0x80000c08) REP time out
+<7>[   44.915147] mmc1: CMD 8(arg=0xaa) REP time out
+<3>[   44.916821] mmc1: CCCR structure version: 3
+<6>[   44.925759] wifi info: wl1271_probe enterload conf file:ti-connectivity/wl18xx-conf/wl18xx-conf-.bin
+<3>[   44.938464] wlcore: ERROR could not get configuration binary ti-connectivity/wl18xx-conf/wl18xx-conf.bin: -2
+<4>[   44.938602] wlcore: WARNING falling back to default config
+<6>[   44.938687] wlcore: wlcore_probe enter.
+<6>[   44.960587] [hi_mci.3][mshci_hi_set_ios]:set io to normal
+<4>[   44.960673] TI WL18XX: Powering on WiFi
+<6>[   44.977551] acc_open
+<6>[   44.977601] acc_release
+<7>[   45.071084] mmc1: CMD 52(arg=0xc00) REP time out
+<7>[   45.071511] mmc1: CMD 52(arg=0x80000c08) REP time out
+<7>[   45.076044] mmc1: CMD 8(arg=0xaa) REP time out
+<3>[   45.078321] mmc1: CCCR structure version: 3
+<4>[   45.209120] ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   45.209216]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   45.225693]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   45.242494]   
+<6>[   45.294220] wlcore: wl18xx HW: RDL 3, 1893 SISO, PG 2.2 (ROM 0x11)
+<6>[   45.297543] [hi_mci.3][mshci_hi_set_ios]:set io to lowpower
+<4>[   45.297658] TI WL18XX: Powering off WiFi
+<6>[   45.313370] [NVE][nve_direct_access] Access NVE0 items[193].
+<6>[   45.313463] [NVE][nve_open_ex]:NV has been initialized!
+<6>[   45.313550] [NVE][nve_direct_access]valid items 0x133
+<4>[   45.313635] nve_direct_access ret= 0
+<4>[   45.313695] open mac address file
+<4>[   45.314523] get MAC from the file!
+<4>[   45.314602] mac address 00:ba:0c:73:3f:0b
+<4>[   45.314680] mac address 00:ba:0c:73:3f:0b
+<4>[   45.314759] mac address 00:ba:0c:73:3f:0c
+<4>[   45.314831] mac address 00:ba:0c:73:3f:0d
+<4>[   45.315662] regulatory domain: handle_channel - Disable Channel: 2484 MHz for Docomo project
+<4>[   45.337366] cfg80211: wext will not work because kernel was compiled with CONFIG_WIRELESS_EXT=n. Tools using wext interface, like iwconfig will not work.
+<6>[   45.339147] wlcore: loaded
+<6>[   45.339217] wlcore: driver version: 
+<6>[   45.339297] wlcore: timestamp: Thu Jun  6 18:08:21 2013
+<4>[   45.410857] CPU3: Booted secondary processor
+<6>[   45.410948] k3v2 irqaffinity irq 38 register irq to cpu 3
+<2>[   45.411054] CPU3: Unknown IPI message 0x1
+<3>[   45.411123] [k3v2_cpu_init] 1254 cpu=3
+<6>[   45.415268] Switched to NOHz mode on CPU #3
+<6>[   45.517023] (stc): add_channel_to_table: id 4
+<6>[   45.517107] (stc): st_register(2) 
+<6>[   45.517168] (stc): add_channel_to_table: id 2
+<6>[   45.517309] (stc): st_register(3) 
+<6>[   45.517374] (stc): add_channel_to_table: id 3
+<6>[   45.526729] bluesleep_hci_event
+<6>[   45.526794] HCI_DEV_UP
+<6>[   45.527009] [NVE][nve_open]:enter.
+<6>[   45.527073] [NVE][nve_open_ex]:NV has been initialized!
+<6>[   45.527184] [NVE][nve_ioctl] Access NVE0 items[194].
+<4>[   45.527317] [NVE]Bad parameter,inputed NV length is 0,will be reassigned according to NV inedx table
+<6>[   45.527498] [NVE][nve_close]:enter.
+<6>[   45.719953] Bluetooth: >>>> l2cap_chan_hold chan=DBDD1400 refcnt=2
+<6>[   45.791545] Bluetooth: >>>> l2cap_chan_hold chan=DBDD1C00 refcnt=2
+<6>[   45.791952] Bluetooth: >>>> l2cap_chan_hold chan=DBDD0800 refcnt=2
+<6>[   45.795678] Bluetooth: >>>> l2cap_chan_hold chan=DBD01C00 refcnt=2
+<6>[   45.796083] Bluetooth: >>>> l2cap_chan_hold chan=DBDD4200 refcnt=2
+<6>[   45.796249] Bluetooth: >>>> l2cap_chan_hold chan=DBDD4600 refcnt=2
+<6>[   45.796381] Bluetooth: >>>> l2cap_chan_hold chan=DBDD4A00 refcnt=2
+<6>[   45.796531] Bluetooth: >>>> l2cap_chan_hold chan=DBDD4E00 refcnt=2
+<6>[   45.813897] [brand] average_on_die_temperature,k3v2[40]
+<6>[   45.813971] 
+<6>[   46.000612] [hi_mci.3][mshci_hi_set_ios]:set io to normal
+<4>[   46.000732] TI WL18XX: Powering on WiFi
+<7>[   46.111664] mmc1: CMD 52(arg=0xc00) REP time out
+<7>[   46.112655] mmc1: CMD 52(arg=0x80000c08) REP time out
+<7>[   46.117040] mmc1: CMD 8(arg=0xaa) REP time out
+<3>[   46.119020] mmc1: CCCR structure version: 3
+<4>[   46.511759] ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   46.511959]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   46.512699]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   46.513217]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   46.530039]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   46.546673]   ==ouyangxun mipi_toshiba_panel_set_backlight enter 
+<4>[   46.563353]   
+<6>[   46.573419] wlcore: PHY firmware version: Rev 8.2.0.0.166
+<6>[   46.702352] wlcore: firmware booted (Rev 8.6.0.0.1)
+<4>[   46.712138] mac80211 bss info role 0 changed 0xemac80211 bss info role 0 changed 0x2000mac80211 bss info role 0 changed 0x4000
+<6>[   46.721354] ADDRCONF(NETDEV_UP): wlan0: link is not ready
+<4>[   46.782418] mac80211 bss info role 255 changed 0xemac80211 bss info role 255 changed 0x2000
+<6>[   46.783340] ADDRCONF(NETDEV_UP): p2p0: link is not ready
+<6>[   46.817239] [brand] average_on_die_temperature,k3v2[41]
+<6>[   46.817314] 
+<6>[   46.869425] wlcore: scan size: 672
+<3>[   46.898076] init: no such service 'Log_MD'
+<0>[   47.073348]  ssid: WIFI - COELI
+<0>[   47.079366]  ssid: RED_NICOLAS
+<0>[   47.082831]  ssid: WIFI - COELI
+<0>[   47.086164]  ssid: WIFI - COELI
+<0>[   47.089417]  ssid: DIRECT-QL-EPSON-L5590 Series
+<0>[   47.094084]  ssid: RED_NICOLAS
+<0>[   47.097443]  ssid: WIFI - COELI
+<0>[   47.100881]  ssid: RED_NICOLAS
+<0>[   47.122004]  ssid: WIFI - COELI
+<0>[   47.125276]  ssid: WIFI - COELI
+<0>[   47.128976]  ssid: WIFI - COELI
+<0>[   47.132328]  ssid: WIFI - COELI
+<0>[   47.221429]  ssid: Luis
+<0>[   47.228399]  ssid: Luis
+<0>[   47.231061]  ssid: Luis
+<6>[   47.270905] wlan0: authenticate with fa:84:1b:2c:a3:e5
+<4>[   47.271017] mac80211 bss info role 0 changed 0x4000mac80211 bss info role 0 changed 0x20000mac80211 bss info role 0 changed 0xe0
+<6>[   47.276217] wlcore: is_sta: 1 old:0 new:1
+<6>[   47.277181] wlan0: send auth to fa:84:1b:2c:a3:e5 (try 1/3)
+<6>[   47.334711] wlan0: authenticated
+<6>[   47.334779] wlcore: is_sta: 1 old:1 new:2
+<4>[   47.335614] mac80211 bss info role 0 changed 0x20000
+<6>[   47.337332] wlan0: associate with fa:84:1b:2c:a3:e5 (try 1/3)
+<6>[   47.388143] wlan0: RX AssocResp from fa:84:1b:2c:a3:e5 (capab=0x1431 status=0 aid=2)
+<6>[   47.388267] wlcore: is_sta: 1 old:2 new:3
+<4>[   47.391128] mac80211 bss info role 0 changed 0x301d
+<6>[   47.399636] ADDRCONF(NETDEV_CHANGE): wlan0: link becomes ready
+<6>[   47.399946] wlan0: associated
+<0>[   47.402878]  ssid: Luis
+<6>[   47.431044] wlcore: is_sta: 1 old:3 new:4
+<6>[   47.431888] wlcore: Association completed.
+<4>[   47.432708] mac80211 bss info role 0 changed 0x40000mac80211 bss info role 0 changed 0x40000
+<6>[   47.541835] plat_chip_asleep
+<6>[   47.820599] [brand] average_on_die_temperature,k3v2[42]
+<6>[   47.820687] 
+<3>[   47.899556] init: cannot execve('/system/bin/devproxy'): Permission denied
+<4>[   48.068151] mac80211 bss info role 0 changed 0x1000mac80211 bss info role 0 changed 0x40000
+<6>[   48.823978] [brand] average_on_die_temperature,k3v2[43]
+<6>[   48.824158] 
+<3>[   49.053481] [cpu_up]cpu max is 4 can not hotplug cpu.
+<3>[   49.053759] [cpu_up]cpu max is 4 can not hotplug cpu.
+<3>[   49.054093] [cpu_up]cpu max is 4 can not hotplug cpu.
+<3>[   49.054343] [cpu_up]cpu max is 4 can not hotplug cpu.
+<6>[   49.072918] [k3fb]k3_fb_open: index=1, enter!
+<6>[   49.073016] [k3fb]k3_fb_open: index=1, exit!
+<6>[   49.077516] [k3fb]k3_fb_blank: index=1, enter!
+<6>[   49.077635] [k3fb]k3_fb_blank: index=1, exit!
+<6>[   49.077724] [k3fb]k3_fb_release: index=1, enter!
+<6>[   49.077806] [k3fb]k3_fb_release: index=1, exit!
+<4>[   49.713926] bq_bci_battery_work 938 in ----->
+<1>[   49.714007] read health result = 0 
+<4>[   49.717890] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   49.717973]  
+<6>[   49.723997] [EMF_TEST] Current Vsys = 3936, Vbat = 3937, dv=-1
+<3>[   49.724112] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   49.724250] [EMF TEST]Ipa = 0, Besides Epa, E = 3939 
+<6>[   49.724373] [EMF TEST]Current Vbat = 3937 Vsys = 3936 dV = -1 EMF = 3939
+<6>[   49.724497] [EMF TEST]Average Vbat = 3937 Vsys = 3936 dV = -1 EMF = 3911
+<6>[   49.724603] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3911
+<6>[   49.724723] [EMF_TEST]Capacity = 68 before tiny jump
+<6>[   49.724808] [EMF_TEST]pre_capacity = 66
+<6>[   49.724898] [EMF TEST]CHARGE Tiny jump!                    timer = 1
+<6>[   49.725019] [EMF_TEST]capacity = 66
+<1>[   49.725097] read capactiylevel result = 66 
+<1>[   49.729499] bqdemon_battery_capacity_level 2109 read capactiylevel status = 3 
+<4>[   49.737229] bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   49.737318]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   49.737733]  bqdemon_battery_temperature 1082  temperature is 27.
+<4>[   49.738120]   Actually vol=3944  cunt 13,sum 51726, vol 3978, ---->13
+<4>[   49.738520]  
+<6>[   49.744320] [EMF_TEST] Current Vsys = 3947, Vbat = 3942, dv=5
+<3>[   49.744416] [bqdemon_modem_pwr_to_current],invalid tx pwr! tx_pwr = -128
+<6>[   49.744530] [EMF TEST]Ipa = 0, Besides Epa, E = 3927 
+<6>[   49.744613] [EMF TEST]Current Vbat = 3942 Vsys = 3947 dV = 5 EMF = 3927
+<6>[   49.744741] [EMF TEST]Average Vbat = 3942 Vsys = 3947 dV = 5 EMF = 3912
+<6>[   49.744850] [EMF TEST]isCharging = 1 di->capacityIsFull = 0 EMF = 3912
+<6>[   49.744958] [EMF_TEST]Capacity = 68 before tiny jump
+<6>[   49.745042] [EMF_TEST]pre_capacity = 66
+<6>[   49.745105] [EMF_TEST]capacity = 67
+<6>[   49.745164] [EMF TEST]curr_capacity = 67bq_bci_battery_work 959 OUT -----<<
+<4>[   49.745690]  Actually vol=3940  cunt 14,sum 55666, vol 3976, ---->14
+<4>[   49.745838]  
+<1>[   49.745893] read current result = 180 mA
+<1>[   49.750045] read current result = 180 mA
+<4>[   49.756745]  Actually vol=3940  cunt 15,sum 59606, vol 3973, ---->15
+<4>[   49.756871]  
+<6>[   49.827260] [brand] average_on_die_temperature,k3v2[43]
+<6>[   49.827340] 
+<3>[   50.437467] [cpu_up]cpu max is 4 can not hotplug cpu.
+<3>[   50.437752] [cpu_up]cpu max is 4 can not hotplug cpu.
+<3>[   50.438052] [cpu_up]cpu max is 4 can not hotplug cpu.
+<6>[   50.830603] [brand] average_on_die_temperature,k3v2[43]
+<6>[   50.830703] 
+<6>[   51.821569] mtp_open
+<6>[   51.833931] [brand] average_on_die_temperature,k3v2[46]
+<6>[   51.834025] 
+<6>[   52.837223] [brand] average_on_die_temperature,k3v2[43]
+<6>[   52.837297] 
+<3>[   53.262609] init: untracked pid 4040 exited
+<3>[   53.279276] init: untracked pid 4043 exited
+<3>[   53.281108] init: untracked pid 4047 exited
+<3>[   53.313160] init: untracked pid 2505 exited
+<3>[   53.430620] init: untracked pid 4061 exited
+<3>[   53.596342] init: untracked pid 4066 exited
+<6>[   53.840563] [brand] average_on_die_temperature,k3v2[45]
+<6>[   53.840649] 
+<3>[   53.999238] init: cannot execve('/system/bin/agnss_connect'): Permission denied
+<3>[   54.057944] init: untracked pid 4092 exited
+<3>[   54.095241] init: untracked pid 4053 exited
+<3>[   54.114432] init: untracked pid 4101 exited
+<3>[   54.292571] init: untracked pid 4112 exited
+<3>[   54.786873] init: untracked pid 4123 exited
+<6>[   54.844009] [brand] average_on_die_temperature,k3v2[44]
+<6>[   54.844093] 
+<3>[   55.388639] init: untracked pid 4196 exited
+<3>[   55.407822] init: untracked pid 4200 exited
+<3>[   55.459857] init: untracked pid 4221 exited
+<3>[   55.479531] init: untracked pid 4223 exited
+<3>[   55.521930] init: untracked pid 4239 exited
+<3>[   55.539187] init: untracked pid 4243 exited
+<3>[   55.590777] init: untracked pid 4256 exited
+<3>[   55.609338] init: untracked pid 4258 exited
+<3>[   55.669842] init: untracked pid 4264 exited
+<3>[   55.684134] init: untracked pid 4266 exited
+<3>[   55.726135] init: untracked pid 4283 exited
+<3>[   55.732330] init: untracked pid 4289 exited
+<3>[   55.734530] init: untracked pid 4285 exited
+<3>[   55.776405] init: untracked pid 4298 exited
+<3>[   55.786654] init: untracked pid 4300 exited
+<6>[   55.847264] [brand] average_on_die_temperature,k3v2[46]
+<6>[   55.847353] 
+<3>[   56.005183] init: cannot execve('/system/bin/RXN_IntApp'): Permission denied
+<3>[   56.016251] init: untracked pid 4332 exited
+<3>[   56.030163] init: untracked pid 4334 exited
+<3>[   56.076879] init: untracked pid 4351 exited
+<3>[   56.088803] init: untracked pid 4353 exited
+<3>[   56.122794] init: untracked pid 4360 exited
+<3>[   56.131195] init: untracked pid 4362 exited
+<3>[   56.161379] init: untracked pid 4379 exited
+<3>[   56.172904] init: untracked pid 4381 exited
+<3>[   56.215870] init: untracked pid 4386 exited
+<3>[   56.224561] init: untracked pid 4388 exited
+<3>[   56.257579] init: untracked pid 4395 exited
+<3>[   56.353746] init: untracked pid 4408 exited
+<3>[   56.762114] init: untracked pid 4427 exited
+<6>[   56.850571] [brand] average_on_die_temperature,k3v2[45]
+<6>[   56.850660] 

@@ -1,0 +1,32 @@
+{
+  "sn65dsi83_reg_pairs": {
+    "address": "0xc062ae3c",
+    "size": 86,
+    "sha256": "61d06a9a8431195a7c6baf779c3040663e3ff99d8c1389fb187d27781ec8ef61"
+  },
+  "gc0339_isp_blob": {
+    "address": "0xc063dd94",
+    "size": 5872,
+    "sha256": "089230a24ba79a10beb44e2712668a6ca4267958aaeb963ab40b9f9829c263d0"
+  },
+  "gc0339_init_blob": {
+    "address": "0xc063f554",
+    "size": 888,
+    "sha256": "c50c6f53e1ff08f45eca246e8e6e8177f87f990e5c2d46307feb894c8a67118f"
+  },
+  "gc0339_framesize_blob": {
+    "address": "0xc063dd80",
+    "size": 20,
+    "sha256": "1f44f9b40037d84a55a9d3c0df1d3ac0542275768023c62474ac8c1bc5e78ef4"
+  },
+  "s5k5cag_init_blob": {
+    "address": "0xc0634858",
+    "size": 36684,
+    "sha256": "1642012cf246fc20102ab83560ba3cbbb34ef491deb3b11a026542b8bd1d6868"
+  },
+  "s5k5cag_isp_blob": {
+    "address": "0xc063d7c0",
+    "size": 16,
+    "sha256": "a907cf97c4caac9e35876d816a0b7b5f69e0ffdd4f55b5495e0f03233f945afc"
+  }
+}
