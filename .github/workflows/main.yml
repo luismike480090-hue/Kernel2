@@ -1,0 +1,92 @@
+name: HWT101 Hybrid Kernel V1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl python3
+
+      - name: Clone MediaPad 10 K3V2 base
+        run: |
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802 || true
+
+      - name: Get Huawei K3V2 reference tree
+        run: |
+          git clone --depth 1 -b cm-11 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git huawei-k3-reference
+
+      - name: Import high-confidence Huawei pieces if base lacks them
+        run: |
+          set -e
+          if [ ! -f kernel/drivers/power/bq2419x_charger.c ] && [ -f huawei-k3-reference/drivers/power/bq2419x_charger.c ]; then
+            cp huawei-k3-reference/drivers/power/bq2419x_charger.c kernel/drivers/power/
+            grep -q bq2419x_charger.o kernel/drivers/power/Makefile || echo 'obj-$(CONFIG_BQ2419X_CHARGER) += bq2419x_charger.o' >> kernel/drivers/power/Makefile
+          fi
+
+      - name: Toolchain GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+
+      - name: Patch old Perl
+        working-directory: kernel
+        run: |
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure base
+        working-directory: kernel
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+
+      - name: Apply HWT101 reconstructed overlay
+        run: |
+          ./scripts/apply_hwt101_overlay.sh kernel
+          python3 scripts/verify_tree.py kernel
+
+      - name: Resolve oldconfig
+        working-directory: kernel
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          yes "" | make oldconfig
+
+      - name: Build V1 candidate
+        working-directory: kernel
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make -j2 zImage 2>&1 | tee ../BUILD.log
+
+      - name: Verify output symbols
+        run: |
+          test -s kernel/arch/arm/boot/zImage
+          grep -E ' (sys_swapon|sys_swapoff|zram_init|xv_malloc|lzo1x_1_compress)$' kernel/System.map | tee MEMORY-SYMBOLS.txt || true
+          grep -E ' (hwt101_sn65_probe|hwt101_sn65_write_regs|sn65dsi83)' kernel/System.map | tee DISPLAY-SYMBOLS.txt || true
+          file kernel/arch/arm/boot/zImage
+          sha256sum kernel/arch/arm/boot/zImage > SHA256-zImage.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-HYBRID-KERNEL-V1
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/.config
+            BUILD.log
+            MEMORY-SYMBOLS.txt
+            DISPLAY-SYMBOLS.txt
+            SHA256-zImage.txt
+            oem_recovered/
