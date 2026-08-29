@@ -13,6 +13,7 @@
  * This file intentionally stays on old Android early-suspend + Linux 3.0 APIs.
  */
 #include <linux/module.h>
+#include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/i2c.h>
 #include <linux/gpio.h>
