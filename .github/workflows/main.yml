@@ -72,7 +72,18 @@ jobs:
           export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
           make -j2 zImage 2>&1 | tee ../BUILD.log
 
+      - name: Mostrar error de compilacion
+        if: failure()
+        run: |
+          echo "========== ULTIMAS 250 LINEAS =========="
+          tail -n 250 BUILD.log || true
+
+          echo
+          echo "========== ERRORES =========="
+          grep -niE "error:|undefined reference|multiple definition|No rule to make target|No such file|collect2:|make.*\\*\\*\\*" BUILD.log | tail -n 150 || true
+      
       - name: Verify output symbols
+        if: success()
         run: |
           test -s kernel/arch/arm/boot/zImage
           grep -E ' (sys_swapon|sys_swapoff|zram_init|xv_malloc|lzo1x_1_compress)$' kernel/System.map | tee MEMORY-SYMBOLS.txt || true
