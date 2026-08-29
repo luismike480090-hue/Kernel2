@@ -53,7 +53,9 @@ jobs:
 
       - name: Apply HWT101 reconstructed overlay
         run: |
-          ./scripts/apply_hwt101_overlay.sh kernel
+          chmod +x scripts/apply_hwt101_overlay.sh
+          chmod +x scripts/verify_tree.py
+          bash scripts/apply_hwt101_overlay.sh kernel
           python3 scripts/verify_tree.py kernel
 
       - name: Resolve oldconfig
