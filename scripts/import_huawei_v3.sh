@@ -39,6 +39,27 @@ if [ -f "$R/drivers/power/bq2419x_charger.c" ]; then
     fi
   done
 
+  # BQ2419X also consumes Huawei K3V2 USB/OTG notifier API.
+  # Import the donor USB headers as a coherent set; do NOT invent the numeric
+  # value of USB_EVENT_OTG_ID.
+  if [ -d "$R/include/linux/usb" ]; then
+    mkdir -p "$K/include/linux/usb"
+    cp -a "$R/include/linux/usb/." "$K/include/linux/usb/"
+    say "Huawei USB headers: IMPORTED all include/linux/usb/*"
+  else
+    say "Huawei USB headers: donor include/linux/usb is MISSING"
+    exit 1
+  fi
+
+  OTG_DEF="$(grep -R -l -w 'USB_EVENT_OTG_ID' "$R/include" "$R/arch/arm/mach-k3v2/include" 2>/dev/null | head -n1 || true)"
+  if [ -z "$OTG_DEF" ]; then
+    say "USB_EVENT_OTG_ID definition NOT FOUND in donor headers"
+    say "Refusing to guess its numeric value."
+    exit 1
+  fi
+  say "USB_EVENT_OTG_ID donor definition source: $OTG_DEF"
+  grep -n -C 5 -w 'USB_EVENT_OTG_ID' "$OTG_DEF" | tee -a "$REPORT" || true
+
   grep -q 'bq2419x_charger.o' "$K/drivers/power/Makefile" || \
     echo 'obj-$(CONFIG_BQ2419X_CHARGER) += bq2419x_charger.o' >> "$K/drivers/power/Makefile"
   if ! grep -q '^config BQ2419X_CHARGER' "$K/drivers/power/Kconfig"; then
