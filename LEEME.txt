@@ -1,0 +1,29 @@
+HWT101 V3.9 - COMBINED COMPILE PATCH
+
+Reemplaza/agrega SOLAMENTE estos archivos sobre tu V3.x actual:
+
+1) oem_recovered/display/sn65dsi83_hwt101.c
+   - Corrige el error:
+       implicit declaration of function 'IS_ERR'
+   - Se añadió:
+       #include <linux/err.h>
+
+2) scripts/import_huawei_v3.sh
+   - Conserva todos los fixes V3.8 FIX2:
+     BQ2419X, power headers, USB API S10 intacta,
+     USB_EVENT_OTG_ID reconstruido como
+       (USB_EVENT_ENUMERATED + 1)
+
+3) scripts/audit_missing_hwt101_drivers.sh
+   - Opcional. Busca en todos los árboles que le pases:
+       Goodix / FT5X0X / GC0339 / S5K5CAG
+   - Ejemplo:
+       bash scripts/audit_missing_hwt101_drivers.sh kernel huawei-k3-reference
+
+IMPORTANTE:
+- Este paquete NO inventa drivers Goodix/FT5X0X/GC0339.
+- A día de hoy esos tres exactos HWT101 no están en el donor Huawei que ya usamos.
+- El kernel puede seguir compilando si no están habilitados como fuentes nuevas,
+  pero todavía NO debe considerarse kernel HWT101 completo/flashable hasta
+  recuperar/adaptar esos drivers.
+- No cambies el YAML por este parche.
