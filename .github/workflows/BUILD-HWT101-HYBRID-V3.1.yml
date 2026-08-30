@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.1
+name: HWT101 Hybrid Kernel V3.2
 
 on:
   workflow_dispatch:
@@ -57,12 +57,30 @@ jobs:
       - name: Resolve oldconfig and prove kernelrelease
         working-directory: kernel
         run: |
+          set -e
           export ARCH=arm
           export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+
           make LOCALVERSION= oldnoconfig
-          KR="$(make -s LOCALVERSION= kernelrelease)"
-          echo "$KR" | tee ../KERNELRELEASE.txt
-          test "$KR" = "3.0.8-g883717a-dirty"
+
+          # Capture only the release string and normalize CR/LF/edge whitespace.
+          KR_RAW="$(make -s LOCALVERSION= kernelrelease 2>/dev/null)"
+          KR="$(printf '%s' "$KR_RAW" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+          printf '%s\n' "$KR" | tee ../KERNELRELEASE.txt
+          printf 'kernelrelease bytes: '
+          printf '%s' "$KR" | od -An -tx1
+          printf '\n'
+
+          case "$KR" in
+            3.0.8-g883717a-dirty)
+              echo "KERNELRELEASE OEM EXACTO: OK"
+              ;;
+            *)
+              echo "ERROR: kernelrelease inesperado: [$KR]"
+              exit 1
+              ;;
+          esac
 
       - name: Build V3 candidate
         working-directory: kernel
@@ -71,6 +89,20 @@ jobs:
           export ARCH=arm
           export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
           make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD.log
+
+      - name: Verify generated kernel release
+        if: success()
+        working-directory: kernel
+        run: |
+          set -e
+          EXPECTED="3.0.8-g883717a-dirty"
+          ACTUAL="$(cat include/config/kernel.release 2>/dev/null || make -s LOCALVERSION= kernelrelease 2>/dev/null)"
+          ACTUAL="$(printf '%s' "$ACTUAL" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          printf '%s\n' "$ACTUAL" | tee ../KERNELRELEASE-BUILT.txt
+          case "$ACTUAL" in
+            "$EXPECTED") echo "RELEASE DEL KERNEL COMPILADO: OK" ;;
+            *) echo "ERROR: release compilado inesperado: [$ACTUAL]"; exit 1 ;;
+          esac
 
       - name: Hardware and symbol verification
         if: success()
@@ -95,7 +127,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.1
+          name: HWT101-HYBRID-KERNEL-V3.2
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
@@ -104,6 +136,7 @@ jobs:
             kernel/.config
             BUILD.log
             KERNELRELEASE.txt
+            KERNELRELEASE-BUILT.txt
             DONOR-HARDWARE-INVENTORY.txt
             BOARD-I2C-INVENTORY-PRE.txt
             BOARD-I2C-INVENTORY-POST.txt
