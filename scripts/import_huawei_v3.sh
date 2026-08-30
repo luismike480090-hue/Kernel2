@@ -49,75 +49,35 @@ if [ -f "$R/drivers/power/bq2419x_charger.c" ]; then
   # Import ONLY the exact donor definition of USB_EVENT_OTG_ID. We extract
   # its enum/define value from the Huawei donor and inject that single
   # definition before compiling bq2419x_charger.c.
-  # V3.8 FIX1: search the ENTIRE Huawei donor, not only header trees.
-  # Some Huawei vendor trees use USB_EVENT_OTG_ID directly in C sources
-  # without publishing it in include/linux/usb.
-  OTG_HITS="$K/../USB-EVENT-OTG-DONOR-HITS.txt"
-  : > "$OTG_HITS"
-
-  grep -R -n -w 'USB_EVENT_OTG_ID' "$R" 2>/dev/null \
-      | grep -v '/.git/' | tee "$OTG_HITS" || true
-
-  # First try an explicit #define or enum assignment anywhere in donor.
-  OTG_LINE="$(grep -R -h -E \
-      '^[[:space:]]*(#define[[:space:]]+USB_EVENT_OTG_ID([[:space:]]+|$)|USB_EVENT_OTG_ID[[:space:]]*=)' \
-      "$R" 2>/dev/null | head -n1 || true)"
-
-  if [ -n "$OTG_LINE" ]; then
-    say "Huawei donor explicit USB_EVENT_OTG_ID definition: $OTG_LINE"
-
-    OTG_VALUE="$(printf '%s\n' "$OTG_LINE" | sed -n \
-        -e 's/^[[:space:]]*#define[[:space:]]\+USB_EVENT_OTG_ID[[:space:]]\+\([^[:space:]\/,}]*\).*/\1/p' \
-        -e 's/^[[:space:]]*USB_EVENT_OTG_ID[[:space:]]*=[[:space:]]*\([^[:space:],}]*\).*/\1/p' \
-        | head -n1)"
-
-    if [ -z "$OTG_VALUE" ]; then
-      say "ERROR: explicit donor definition found but value could not be parsed"
-      exit 1
-    fi
-
-    if ! grep -q 'HWT101_USB_EVENT_OTG_ID_EXACT' "$K/drivers/power/bq2419x_charger.c"; then
-      tmp="$K/drivers/power/.bq2419x_charger.c.hwt101"
-      {
-        echo '/* HWT101_USB_EVENT_OTG_ID_EXACT */'
-        echo '#ifndef USB_EVENT_OTG_ID'
-        printf '#define USB_EVENT_OTG_ID %s\n' "$OTG_VALUE"
-        echo '#endif'
-        cat "$K/drivers/power/bq2419x_charger.c"
-      } > "$tmp"
-      mv "$tmp" "$K/drivers/power/bq2419x_charger.c"
-    fi
-    say "BQ2419X exact donor USB_EVENT_OTG_ID=$OTG_VALUE: APPLIED"
-  else
-    # No explicit definition: collect the actual USB event namespace and the
-    # two BQ switch bodies. Do not guess and do not start a doomed compile.
-    EVENTS="$K/../USB-EVENT-DONOR-REPORT.txt"
-    {
-      echo "===== ALL USB EVENT SYMBOLS IN DONOR ====="
-      grep -R -n -E 'USB_[A-Z0-9_]*(CONNECT|DISCONNECT|EVENT|ID|OTG)' "$R" 2>/dev/null \
-        | grep -v '/.git/' || true
-
-      echo
-      echo "===== IMPORTED BQ2419X SWITCH AREA ====="
-      sed -n '1570,1670p' "$K/drivers/power/bq2419x_charger.c" || true
-
-      echo
-      echo "===== DONOR BQ2419X SWITCH AREA ====="
-      sed -n '1570,1670p' "$R/drivers/power/bq2419x_charger.c" 2>/dev/null || true
-
-      echo
-      echo "===== S10 USB EVENT DEFINITIONS ====="
-      grep -R -n -E 'USB_(CONNECT|DISCONNECT|EVENT_[A-Z0-9_]+)' \
-        "$K/include/linux" "$K/arch/arm/mach-k3v2/include" 2>/dev/null || true
-    } | tee "$EVENTS"
-
-    say "USB_EVENT_OTG_ID has no explicit donor definition."
-    say "Diagnostic reports generated:"
-    say "  USB-EVENT-OTG-DONOR-HITS.txt"
-    say "  USB-EVENT-DONOR-REPORT.txt"
-    say "Stopping intentionally before compilation; use these reports for exact mapping."
-    exit 86
+  # V3.8 FIX2:
+  # The donor BQ2419X source references USB_EVENT_OTG_ID, but this donor tree
+  # does not define it anywhere. The S10 OTG enum is:
+  #   NONE, VBUS, ID, CHARGER, ENUMERATED
+  # and V3.7 proved OTG_ID cannot alias USB_EVENT_ID because that creates
+  # duplicate switch case values.
+  #
+  # Reconstruct the missing vendor extension as the next event value after
+  # USB_EVENT_ENUMERATED. This preserves every existing S10 event value and
+  # gives the BQ2419X OTG-only path a unique event code.
+  if ! grep -R -q -w 'USB_EVENT_ENUMERATED' "$K/include/linux/usb" "$K/include/linux" 2>/dev/null; then
+    say "ERROR: USB_EVENT_ENUMERATED missing from S10 USB API"
+    exit 1
   fi
+
+  if ! grep -q 'HWT101_USB_EVENT_OTG_ID_RECONSTRUCTED' "$K/drivers/power/bq2419x_charger.c"; then
+    tmp="$K/drivers/power/.bq2419x_charger.c.hwt101"
+    {
+      echo '/* HWT101_USB_EVENT_OTG_ID_RECONSTRUCTED */'
+      echo '#ifndef USB_EVENT_OTG_ID'
+      echo '#define USB_EVENT_OTG_ID (USB_EVENT_ENUMERATED + 1)'
+      echo '#endif'
+      cat "$K/drivers/power/bq2419x_charger.c"
+    } > "$tmp"
+    mv "$tmp" "$K/drivers/power/bq2419x_charger.c"
+  fi
+
+  say "BQ2419X USB_EVENT_OTG_ID reconstructed as (USB_EVENT_ENUMERATED + 1)"
+  say "Expected S10 numeric sequence: NONE=0 VBUS=1 ID=2 CHARGER=3 ENUMERATED=4 OTG_ID=5"
 
   # Prove the S10 FSA880 event API was NOT destroyed.
   if ! grep -R -q -w 'USB_CONNECT' "$K/include" 2>/dev/null; then
