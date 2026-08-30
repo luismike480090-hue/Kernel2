@@ -19,24 +19,25 @@ say "Reference: $R"
 if [ -f "$R/drivers/power/bq2419x_charger.c" ]; then
   cp "$R/drivers/power/bq2419x_charger.c" "$K/drivers/power/bq2419x_charger.c"
 
-  # Import the matching Huawei header(s) used by this exact driver.
-  # V3.3 copied only the .c and therefore failed at:
-  #   linux/power/bq2419x_charger.h: No such file or directory
+  # Import ALL linux/power headers from the same Huawei K3V2 donor.
+  # The BQ2419X source depends not only on bq2419x_charger.h but also
+  # on bq27510_battery.h (and potentially companion power headers).
+  # Copying the donor power-header set avoids one-header-at-a-time failures.
   mkdir -p "$K/include/linux/power"
-  if [ -f "$R/include/linux/power/bq2419x_charger.h" ]; then
-    cp "$R/include/linux/power/bq2419x_charger.h" "$K/include/linux/power/bq2419x_charger.h"
-    say "BQ2419X header: IMPORTED include/linux/power/bq2419x_charger.h"
+  if [ -d "$R/include/linux/power" ]; then
+    cp -a "$R/include/linux/power/." "$K/include/linux/power/"
+    say "Huawei power headers: IMPORTED all include/linux/power/*"
   else
-    # Defensive fallback: locate the exact basename anywhere in the Huawei tree.
-    hdr="$(find "$R" -type f -name 'bq2419x_charger.h' | head -1 || true)"
-    if [ -n "$hdr" ]; then
-      cp "$hdr" "$K/include/linux/power/bq2419x_charger.h"
-      say "BQ2419X header: IMPORTED fallback -> ${hdr#$R/}"
-    else
-      say "BQ2419X header: MISSING in reference tree"
+    say "Huawei power headers: donor include/linux/power is MISSING"
+    exit 1
+  fi
+
+  for req in bq2419x_charger.h bq27510_battery.h; do
+    if [ ! -s "$K/include/linux/power/$req" ]; then
+      say "Required Huawei power header MISSING: $req"
       exit 1
     fi
-  fi
+  done
 
   grep -q 'bq2419x_charger.o' "$K/drivers/power/Makefile" || \
     echo 'obj-$(CONFIG_BQ2419X_CHARGER) += bq2419x_charger.o' >> "$K/drivers/power/Makefile"
@@ -50,10 +51,8 @@ config BQ2419X_CHARGER
 KCFG
   fi
   say "BQ2419X: IMPORTED exact Huawei K3V2 donor"
-  # Report BQ2419X include dependencies before build.
-  say "BQ2419X includes:"
+  say "BQ2419X include dependencies:"
   grep '^#include' "$K/drivers/power/bq2419x_charger.c" | tee -a "$REPORT" || true
-  test -s "$K/include/linux/power/bq2419x_charger.h"
 else
   say "BQ2419X: MISSING in reference tree"
 fi
