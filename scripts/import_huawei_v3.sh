@@ -18,6 +18,26 @@ say "Reference: $R"
 # 1) Huawei BQ2419X: exact K3V2-era donor verified to exist in mangusta86 tree.
 if [ -f "$R/drivers/power/bq2419x_charger.c" ]; then
   cp "$R/drivers/power/bq2419x_charger.c" "$K/drivers/power/bq2419x_charger.c"
+
+  # Import the matching Huawei header(s) used by this exact driver.
+  # V3.3 copied only the .c and therefore failed at:
+  #   linux/power/bq2419x_charger.h: No such file or directory
+  mkdir -p "$K/include/linux/power"
+  if [ -f "$R/include/linux/power/bq2419x_charger.h" ]; then
+    cp "$R/include/linux/power/bq2419x_charger.h" "$K/include/linux/power/bq2419x_charger.h"
+    say "BQ2419X header: IMPORTED include/linux/power/bq2419x_charger.h"
+  else
+    # Defensive fallback: locate the exact basename anywhere in the Huawei tree.
+    hdr="$(find "$R" -type f -name 'bq2419x_charger.h' | head -1 || true)"
+    if [ -n "$hdr" ]; then
+      cp "$hdr" "$K/include/linux/power/bq2419x_charger.h"
+      say "BQ2419X header: IMPORTED fallback -> ${hdr#$R/}"
+    else
+      say "BQ2419X header: MISSING in reference tree"
+      exit 1
+    fi
+  fi
+
   grep -q 'bq2419x_charger.o' "$K/drivers/power/Makefile" || \
     echo 'obj-$(CONFIG_BQ2419X_CHARGER) += bq2419x_charger.o' >> "$K/drivers/power/Makefile"
   if ! grep -q '^config BQ2419X_CHARGER' "$K/drivers/power/Kconfig"; then
@@ -30,6 +50,10 @@ config BQ2419X_CHARGER
 KCFG
   fi
   say "BQ2419X: IMPORTED exact Huawei K3V2 donor"
+  # Report BQ2419X include dependencies before build.
+  say "BQ2419X includes:"
+  grep '^#include' "$K/drivers/power/bq2419x_charger.c" | tee -a "$REPORT" || true
+  test -s "$K/include/linux/power/bq2419x_charger.h"
 else
   say "BQ2419X: MISSING in reference tree"
 fi
