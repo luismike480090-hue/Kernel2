@@ -209,9 +209,12 @@ for sym in FUNCTION_SYMBOLS + VARIABLE_SYMBOLS:
     # This was the V3.10 regression: board-k3v2oem1.c from a different Huawei
     # device replaced the S10 board file and broke its MHL platform API.
     if dst.exists():
-        conflicts.append((sym, rel))
-        resolved[sym] = ("CONFLICT", rel)
-        print(f"SAFE-CONFLICT: {sym}: donor provider {rel} collides with existing S10 file; NOT overwritten")
+        # Same relative source exists in S10. Preserve the S10 implementation
+        # and force its object into vmlinux instead of replacing it with donor.
+        # This is the correct case for drivers/power/bq27510_battery.c.
+        force_object_for_file(dst)
+        resolved[sym] = ("S10-SAME-PATH-FORCED", rel)
+        print(f"SAME-PATH PROVIDER: {sym}: preserved S10 {rel} and forced {dst.stem}.o")
         continue
 
     dst.parent.mkdir(parents=True, exist_ok=True)
