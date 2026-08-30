@@ -139,3 +139,11 @@ find "$R/drivers" -type f \( \
   -iname '*goodix*' -o -iname '*gt9*' -o -iname '*ft5*' -o \
   -iname '*gc0339*' -o -iname '*s5k5*' -o -iname '*bq2419*' \) \
   2>/dev/null | sed "s#^$R/##" | sort | tee -a "$REPORT" || true
+
+
+# HWT101_V3_10_LINK_PROVIDERS
+# Import the exact Huawei source files that DEFINE the unresolved battery,
+# thermal and HIUSB symbols from the current vmlinux link failure.
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+python3 "$SCRIPT_DIR/import_link_providers.py" "$K" "$R"
+say "V3.10 exact battery/thermal/HIUSB link providers: IMPORTED"

@@ -13,11 +13,11 @@
  * This file intentionally stays on old Android early-suspend + Linux 3.0 APIs.
  */
 #include <linux/module.h>
-#include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/i2c.h>
 #include <linux/gpio.h>
 #include <linux/delay.h>
+#include <linux/err.h>
 #include <linux/regulator/consumer.h>
 #include <linux/earlysuspend.h>
 #include "sn65dsi83_oem_table.h"

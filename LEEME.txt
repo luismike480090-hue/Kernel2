@@ -1,29 +1,45 @@
-HWT101 V3.9 - COMBINED COMPILE PATCH
+HWT101 V3.10 - LINK DEPENDENCIES
 
-Reemplaza/agrega SOLAMENTE estos archivos sobre tu V3.x actual:
+Reemplaza/agrega SOLO:
 
-1) oem_recovered/display/sn65dsi83_hwt101.c
-   - Corrige el error:
-       implicit declaration of function 'IS_ERR'
-   - Se añadió:
-       #include <linux/err.h>
+  scripts/import_huawei_v3.sh
+  scripts/import_link_providers.py
+  oem_recovered/display/sn65dsi83_hwt101.c
 
-2) scripts/import_huawei_v3.sh
-   - Conserva todos los fixes V3.8 FIX2:
-     BQ2419X, power headers, USB API S10 intacta,
-     USB_EVENT_OTG_ID reconstruido como
-       (USB_EVENT_ENUMERATED + 1)
+No cambies el YAML.
 
-3) scripts/audit_missing_hwt101_drivers.sh
-   - Opcional. Busca en todos los árboles que le pases:
-       Goodix / FT5X0X / GC0339 / S5K5CAG
-   - Ejemplo:
-       bash scripts/audit_missing_hwt101_drivers.sh kernel huawei-k3-reference
+Qué corrige:
+- conserva el FIX de SN65: #include <linux/err.h>
+- conserva BQ2419X + USB_EVENT_OTG_ID del V3.8 FIX2
+- busca en el MISMO donor Huawei K3V2 la DEFINICIÓN REAL de cada símbolo
+  que ahora falla durante .tmp_vmlinux1:
+    get_battery_id
+    is_bq27510_battery_exist
+    is_bq27510_battery_full
+    bq27510_battery_temperature
+    bq27510_battery_voltage
+    bq27510_battery_capacity
+    bq27510_battery_current
+    bq27510_get_gasgauge_normal_capacity
+    bq27510_get_gasgauge_param_temperature
+    g_battery_measure_by_bq27510_device
+    nct203_temp_report
+    hiusb_charger_registe_notifier
+    hiusb_charger_unregiste_notifier
+    get_charger_name
+    notifier_list
+    wakeup_timer_seconds
 
-IMPORTANTE:
-- Este paquete NO inventa drivers Goodix/FT5X0X/GC0339.
-- A día de hoy esos tres exactos HWT101 no están en el donor Huawei que ya usamos.
-- El kernel puede seguir compilando si no están habilitados como fuentes nuevas,
-  pero todavía NO debe considerarse kernel HWT101 completo/flashable hasta
-  recuperar/adaptar esos drivers.
-- No cambies el YAML por este parche.
+El helper NO crea stubs. Encuentra el .c que realmente DEFINE cada símbolo,
+lo copia a la misma ruta del árbol S10 y fuerza ese objeto a entrar en el
+enlace.
+
+También genera:
+  LINK-PROVIDER-IMPORT.txt
+
+Si algún símbolo no tiene definición real en el donor, se detiene con exit 87
+ANTES de gastar tiempo compilando. En ese caso comparte LINK-PROVIDER-IMPORT.txt.
+
+Nota:
+El log anterior llegó a .tmp_vmlinux1; por eso este parche ataca exactamente
+la fase de LINK y no toca SWAP/ZRAM ni la lógica de display.
