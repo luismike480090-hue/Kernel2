@@ -40,27 +40,52 @@ if [ -f "$R/drivers/power/bq2419x_charger.c" ]; then
   done
 
   # Keep the S10 USB header set intact.
-  # V3.6 replaced include/linux/usb/* with the donor set and broke
-  # fsa880_i2c.c because USB_CONNECT / USB_DISCONNECT disappeared.
+  # V3.6 replacing include/linux/usb/* broke FSA880, so never replace it.
   #
-  # BQ2419X needs the donor spelling USB_EVENT_OTG_ID.  The S10 USB API
-  # exposes the corresponding ID event as USB_EVENT_ID, so add a local
-  # compatibility alias ONLY to bq2419x_charger.c rather than replacing
-  # the whole USB API.
-  if grep -R -q -w 'USB_EVENT_ID' "$K/include/linux/usb" "$K/include/linux" 2>/dev/null; then
-    if ! grep -q 'HWT101_USB_EVENT_OTG_ID_COMPAT' "$K/drivers/power/bq2419x_charger.c"; then
-      sed -i '1i\
-/* HWT101_USB_EVENT_OTG_ID_COMPAT */\
-#ifndef USB_EVENT_OTG_ID\
-#define USB_EVENT_OTG_ID USB_EVENT_ID\
-#endif\
-' "$K/drivers/power/bq2419x_charger.c"
-    fi
-    say "BQ2419X USB_EVENT_OTG_ID -> USB_EVENT_ID compatibility: APPLIED"
-  else
-    say "ERROR: base S10 USB_EVENT_ID not found; refusing numeric guess"
+  # V3.7 mapped USB_EVENT_OTG_ID to USB_EVENT_ID, but the new build proved
+  # that this creates duplicate switch case values. Therefore those are NOT
+  # equivalent events in this driver.
+  #
+  # Import ONLY the exact donor definition of USB_EVENT_OTG_ID. We extract
+  # its enum/define value from the Huawei donor and inject that single
+  # definition before compiling bq2419x_charger.c.
+  OTG_LINE="$(grep -R -h -E '^[[:space:]]*(#define[[:space:]]+USB_EVENT_OTG_ID|USB_EVENT_OTG_ID[[:space:]]*=)' \
+      "$R/include" "$R/arch/arm/mach-k3v2/include" 2>/dev/null | head -n1 || true)"
+
+  if [ -z "$OTG_LINE" ]; then
+    say "ERROR: exact USB_EVENT_OTG_ID definition not found in Huawei donor"
     exit 1
   fi
+
+  say "Huawei donor USB_EVENT_OTG_ID definition: $OTG_LINE"
+
+  OTG_VALUE="$(printf '%s\n' "$OTG_LINE" | sed -n \
+      -e 's/^[[:space:]]*#define[[:space:]]\+USB_EVENT_OTG_ID[[:space:]]\+\([^[:space:]\/,}]*\).*/\1/p' \
+      -e 's/^[[:space:]]*USB_EVENT_OTG_ID[[:space:]]*=[[:space:]]*\([^[:space:],}]*\).*/\1/p' | head -n1)"
+
+  if [ -z "$OTG_VALUE" ]; then
+    say "ERROR: could not parse donor USB_EVENT_OTG_ID value"
+    exit 1
+  fi
+
+  # Reject the known-wrong alias that caused V3.7 duplicate case values.
+  if [ "$OTG_VALUE" = "USB_EVENT_ID" ]; then
+    say "ERROR: donor parse unexpectedly aliases USB_EVENT_OTG_ID to USB_EVENT_ID"
+    exit 1
+  fi
+
+  if ! grep -q 'HWT101_USB_EVENT_OTG_ID_EXACT' "$K/drivers/power/bq2419x_charger.c"; then
+    tmp="$K/drivers/power/.bq2419x_charger.c.hwt101"
+    {
+      echo '/* HWT101_USB_EVENT_OTG_ID_EXACT */'
+      echo '#ifndef USB_EVENT_OTG_ID'
+      printf '#define USB_EVENT_OTG_ID %s\n' "$OTG_VALUE"
+      echo '#endif'
+      cat "$K/drivers/power/bq2419x_charger.c"
+    } > "$tmp"
+    mv "$tmp" "$K/drivers/power/bq2419x_charger.c"
+  fi
+  say "BQ2419X exact donor USB_EVENT_OTG_ID=$OTG_VALUE: APPLIED"
 
   # Prove the S10 FSA880 event API was NOT destroyed.
   if ! grep -R -q -w 'USB_CONNECT' "$K/include" 2>/dev/null; then
