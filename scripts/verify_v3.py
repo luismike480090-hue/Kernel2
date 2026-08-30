@@ -15,7 +15,7 @@ for s in ['sys_swapon','sys_swapoff','zram_init','xv_malloc','lzo1x_1_compress',
 
 # Kernelrelease MUST exactly match OEM modules.
 try:
-    kr=subprocess.check_output(['make','-s','kernelrelease'],cwd=k,text=True).strip()
+    kr=subprocess.check_output(['make','-s','LOCALVERSION=','kernelrelease'],cwd=k,text=True).strip()
 except Exception as e:
     kr=f'ERROR:{e}'
 add(kr=='3.0.8-g883717a-dirty','kernelrelease exact',kr)

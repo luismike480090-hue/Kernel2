@@ -45,10 +45,14 @@ if [ -f "$K/drivers/power/bq2419x_charger.c" ]; then
 fi
 
 # Keep module versioning setting from base, but never change it blindly.
-# Exact release: .scmversion suppresses the dirty-tree '+' added by setlocalversion.
+# Exact OEM release.
+# Old Linux 3.0.x appends '+' for a modified SCM tree when LOCALVERSION is
+# unspecified, even with CONFIG_LOCALVERSION_AUTO disabled.
+# Put the OEM suffix in CONFIG_LOCALVERSION and invoke make with LOCALVERSION=
+# so the SCM '+' is suppressed deterministically.
 sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' "$CFG"
-echo 'CONFIG_LOCALVERSION=""' >> "$CFG"
+echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> "$CFG"
 echo '# CONFIG_LOCALVERSION_AUTO is not set' >> "$CFG"
-printf '%s' '-g883717a-dirty' > "$K/.scmversion"
+rm -f "$K/.scmversion"
 
 echo "[V3] Overlay applied"
