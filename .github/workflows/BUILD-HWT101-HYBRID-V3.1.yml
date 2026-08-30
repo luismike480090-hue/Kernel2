@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.2
+name: HWT101 Hybrid Kernel V3.3
 
 on:
   workflow_dispatch:
@@ -63,9 +63,13 @@ jobs:
 
           make LOCALVERSION= oldnoconfig
 
-          # Capture only the release string and normalize CR/LF/edge whitespace.
-          KR_RAW="$(make -s LOCALVERSION= kernelrelease 2>/dev/null)"
-          KR="$(printf '%s' "$KR_RAW" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          # This old tree prints kconfig status text to stdout even with -s.
+          # Extract the actual release token instead of trusting the full stdout.
+          KR_RAW="$(make -s LOCALVERSION= kernelrelease 2>&1 || true)"
+          printf '%s\n' "$KR_RAW" > ../KERNELRELEASE-RAW.txt
+
+          KR="$(printf '%s\n' "$KR_RAW" | grep -oE '3\.0\.8(-g[0-9a-f]+-dirty)?\+?' | tail -n 1 || true)"
+          KR="$(printf '%s' "$KR" | tr -d '\r\n[:space:]')"
 
           printf '%s\n' "$KR" | tee ../KERNELRELEASE.txt
           printf 'kernelrelease bytes: '
@@ -78,6 +82,8 @@ jobs:
               ;;
             *)
               echo "ERROR: kernelrelease inesperado: [$KR]"
+              echo "----- salida cruda de make kernelrelease -----"
+              cat ../KERNELRELEASE-RAW.txt
               exit 1
               ;;
           esac
@@ -96,8 +102,13 @@ jobs:
         run: |
           set -e
           EXPECTED="3.0.8-g883717a-dirty"
-          ACTUAL="$(cat include/config/kernel.release 2>/dev/null || make -s LOCALVERSION= kernelrelease 2>/dev/null)"
-          ACTUAL="$(printf '%s' "$ACTUAL" | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          if [ -s include/config/kernel.release ]; then
+            ACTUAL="$(cat include/config/kernel.release)"
+          else
+            ACTUAL_RAW="$(make -s LOCALVERSION= kernelrelease 2>&1 || true)"
+            ACTUAL="$(printf '%s\n' "$ACTUAL_RAW" | grep -oE '3\.0\.8(-g[0-9a-f]+-dirty)?\+?' | tail -n 1 || true)"
+          fi
+          ACTUAL="$(printf '%s' "$ACTUAL" | tr -d '\r\n[:space:]')"
           printf '%s\n' "$ACTUAL" | tee ../KERNELRELEASE-BUILT.txt
           case "$ACTUAL" in
             "$EXPECTED") echo "RELEASE DEL KERNEL COMPILADO: OK" ;;
@@ -127,7 +138,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.2
+          name: HWT101-HYBRID-KERNEL-V3.3
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
@@ -136,6 +147,7 @@ jobs:
             kernel/.config
             BUILD.log
             KERNELRELEASE.txt
+            KERNELRELEASE-RAW.txt
             KERNELRELEASE-BUILT.txt
             DONOR-HARDWARE-INVENTORY.txt
             BOARD-I2C-INVENTORY-PRE.txt
