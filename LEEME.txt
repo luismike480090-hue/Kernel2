@@ -1,45 +1,32 @@
-HWT101 V3.10 - LINK DEPENDENCIES
+HWT101 V3.11 - SAFE LINK PROVIDERS
 
-Reemplaza/agrega SOLO:
+Este parche corrige el problema nuevo:
 
-  scripts/import_huawei_v3.sh
+  board-k3v2oem1.c: k3_mhl_data incomplete type
+  MHL_GPIO_RESET / WAKE_UP / INT undeclared
+  MHL_SII9244_* undeclared
+
+Causa:
+V3.10 podía copiar un .c completo del donor encima de un .c ya existente
+en S10 si ese archivo contenía un símbolo faltante. Eso es peligroso con
+arch/arm/mach-k3v2/board-k3v2oem1.c porque el board del donor y el board S10
+no usan exactamente la misma API MHL.
+
+V3.11:
+- busca primero si S10 YA tiene una definición real del símbolo y fuerza ese objeto;
+- NUNCA sobrescribe un .c que ya exista en S10;
+- NUNCA sobrescribe un header que ya exista en S10;
+- sólo importa del donor fuentes/headers que realmente falten;
+- si un símbolo sólo existe dentro de un archivo donor que colisiona con un
+  archivo S10 existente, se detiene con exit 88 y lo reporta. No rompe el board.
+
+Reemplaza/agrega solamente:
   scripts/import_link_providers.py
+  scripts/import_huawei_v3.sh
   oem_recovered/display/sn65dsi83_hwt101.c
 
-No cambies el YAML.
+No cambies YAML.
 
-Qué corrige:
-- conserva el FIX de SN65: #include <linux/err.h>
-- conserva BQ2419X + USB_EVENT_OTG_ID del V3.8 FIX2
-- busca en el MISMO donor Huawei K3V2 la DEFINICIÓN REAL de cada símbolo
-  que ahora falla durante .tmp_vmlinux1:
-    get_battery_id
-    is_bq27510_battery_exist
-    is_bq27510_battery_full
-    bq27510_battery_temperature
-    bq27510_battery_voltage
-    bq27510_battery_capacity
-    bq27510_battery_current
-    bq27510_get_gasgauge_normal_capacity
-    bq27510_get_gasgauge_param_temperature
-    g_battery_measure_by_bq27510_device
-    nct203_temp_report
-    hiusb_charger_registe_notifier
-    hiusb_charger_unregiste_notifier
-    get_charger_name
-    notifier_list
-    wakeup_timer_seconds
-
-El helper NO crea stubs. Encuentra el .c que realmente DEFINE cada símbolo,
-lo copia a la misma ruta del árbol S10 y fuerza ese objeto a entrar en el
-enlace.
-
-También genera:
-  LINK-PROVIDER-IMPORT.txt
-
-Si algún símbolo no tiene definición real en el donor, se detiene con exit 87
-ANTES de gastar tiempo compilando. En ese caso comparte LINK-PROVIDER-IMPORT.txt.
-
-Nota:
-El log anterior llegó a .tmp_vmlinux1; por eso este parche ataca exactamente
-la fase de LINK y no toca SWAP/ZRAM ni la lógica de display.
+Si termina con exit 88, comparte LINK-PROVIDER-IMPORT.txt. Ese reporte nos
+dirá qué símbolo necesita una extracción quirúrgica en vez de reemplazar
+todo board-k3v2oem1.c.

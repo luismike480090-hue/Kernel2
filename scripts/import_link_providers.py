@@ -110,17 +110,47 @@ if missing:
     for sym in missing:
         print(sym)
 
-# Unique exact source providers.
-uniq = []
-seen = set()
-for p in providers.values():
-    rp = str(p.relative_to(R))
-    if rp not in seen:
-        seen.add(rp)
-        uniq.append(p)
+# Prefer exact providers already present in the S10 base. This is critical:
+# never replace board-k3v2oem1.c or any other existing S10 source with a donor
+# file just because the donor happens to define one required symbol.
 
-def force_object(rel):
-    dst_c = K / rel
+def kernel_c_files():
+    for p in K.rglob("*.c"):
+        if "/.git/" not in str(p):
+            yield p
+
+KFILES = list(kernel_c_files())
+
+def find_function_provider_in(files, sym):
+    pat = re.compile(r'(?m)^[^\n;]*\b' + re.escape(sym) +
+                     r'\s*\([^;{}]*\)\s*\{', re.S)
+    out = []
+    for p in files:
+        try:
+            t = p.read_text(errors="ignore")
+        except Exception:
+            continue
+        if pat.search(t):
+            out.append(p)
+    return out
+
+def find_variable_provider_in(files, sym):
+    init_pat = re.compile(r'(?m)^(?!\s*extern\b)(?!\s*#)[^\n;]*\b' +
+                          re.escape(sym) + r'\b\s*(?:=|;)')
+    out = []
+    for p in files:
+        try:
+            t = p.read_text(errors="ignore")
+        except Exception:
+            continue
+        for m in init_pat.finditer(t):
+            if "extern " not in m.group(0):
+                out.append(p)
+                break
+    return out
+
+def force_object_for_file(dst_c):
+    rel = dst_c.relative_to(K)
     d = dst_c.parent
     mk = d / "Makefile"
     obj = dst_c.stem + ".o"
@@ -128,11 +158,9 @@ def force_object(rel):
         mk.write_text("")
     txt = mk.read_text(errors="ignore")
 
-    # If object is controlled by CONFIG_*, replace ONLY its simple obj-* line
-    # by obj-y so the exact provider is guaranteed to be linked for this build.
     lines = txt.splitlines()
-    changed = False
     found = False
+    changed = False
     new_lines = []
     for line in lines:
         if re.search(r'\b' + re.escape(obj) + r'\b', line):
@@ -149,38 +177,96 @@ def force_object(rel):
         changed = True
     if changed:
         mk.write_text("\n".join(new_lines) + "\n")
+    print(f"FORCED OBJECT: {rel}")
 
-for src in uniq:
-    rel = src.relative_to(R)
+resolved = {}
+conflicts = []
+copied = []
+
+for sym in FUNCTION_SYMBOLS + VARIABLE_SYMBOLS:
+    # First find a real definition in the S10 base.
+    if sym in FUNCTION_SYMBOLS:
+        kc = find_function_provider_in(KFILES, sym)
+    else:
+        kc = find_variable_provider_in(KFILES, sym)
+
+    if kc:
+        kc.sort(key=lambda p: (len(str(p)), str(p)))
+        kp = kc[0]
+        force_object_for_file(kp)
+        resolved[sym] = ("S10", kp.relative_to(K))
+        continue
+
+    # Otherwise use the already-discovered Huawei donor provider.
+    dp = providers.get(sym)
+    if dp is None:
+        continue
+
+    rel = dp.relative_to(R)
     dst = K / rel
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
-    force_object(rel)
-    print(f"IMPORTED+FORCED: {rel}")
 
-# Copy exact donor headers referenced by these providers when they live under
-# include/linux and exist in the donor. This is deliberately narrow.
+    # IMPORTANT: never overwrite an existing S10 source with a donor source.
+    # This was the V3.10 regression: board-k3v2oem1.c from a different Huawei
+    # device replaced the S10 board file and broke its MHL platform API.
+    if dst.exists():
+        conflicts.append((sym, rel))
+        resolved[sym] = ("CONFLICT", rel)
+        print(f"SAFE-CONFLICT: {sym}: donor provider {rel} collides with existing S10 file; NOT overwritten")
+        continue
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(dp, dst)
+    force_object_for_file(dst)
+    copied.append(dst)
+    resolved[sym] = ("DONOR", rel)
+    print(f"IMPORTED NEW SOURCE: {rel}")
+
+# Copy only headers that do NOT already exist in S10. Never overwrite a base
+# header: the S10 board code must keep its own MHL/USB/platform structures.
 include_re = re.compile(r'^\s*#\s*include\s*<([^>]+)>', re.M)
-for src in uniq:
+for src in copied:
     t = src.read_text(errors="ignore")
+    # Map copied kernel path back to donor path.
+    rel = src.relative_to(K)
+    donor_src = R / rel
+    if not donor_src.is_file():
+        continue
     for inc in include_re.findall(t):
         if not inc.startswith("linux/"):
             continue
         rs = R / "include" / inc
-        if rs.is_file():
-            kd = K / "include" / inc
+        kd = K / "include" / inc
+        if rs.is_file() and not kd.exists():
             kd.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(rs, kd)
+            print(f"IMPORTED MISSING HEADER ONLY: include/{inc}")
+        elif rs.is_file() and kd.exists():
+            print(f"PRESERVED S10 HEADER: include/{inc}")
 
 report = K.parent / "LINK-PROVIDER-IMPORT.txt"
 with report.open("w") as f:
     for sym in FUNCTION_SYMBOLS + VARIABLE_SYMBOLS:
-        p = providers.get(sym)
-        f.write(f"{sym}: {p.relative_to(R) if p else 'NOT FOUND'}\n")
+        status = resolved.get(sym)
+        if status:
+            f.write(f"{sym}: {status[0]}:{status[1]}\n")
+        elif sym in missing:
+            f.write(f"{sym}: NOT FOUND\n")
+        else:
+            p = providers.get(sym)
+            f.write(f"{sym}: DONOR:{p.relative_to(R) if p else 'NOT FOUND'}\n")
 
 if missing:
     print("ERROR: one or more exact provider definitions are still missing.")
     print("See LINK-PROVIDER-IMPORT.txt")
     sys.exit(87)
 
-print("All current unresolved symbols have exact donor providers.")
+if conflicts:
+    print("===== SAFE SOURCE COLLISIONS =====")
+    for sym, rel in conflicts:
+        print(f"{sym}: {rel}")
+    print("These donor files were NOT copied over S10.")
+    print("This prevents another board-k3v2oem1/MHL API regression.")
+    print("See LINK-PROVIDER-IMPORT.txt")
+    sys.exit(88)
+
+print("All current unresolved symbols are provided without overwriting S10 sources/headers.")
