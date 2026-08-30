@@ -1,65 +1,38 @@
-# HWT101 HYBRID KERNEL SOURCE V1
+HWT101 HYBRID KERNEL V3
+=======================
 
-Este paquete es la primera reconstrucción de fuente híbrida preparada para COMPILAR.
-No se presenta como un kernel ya probado en la tablet.
+Purpose
+-------
+Continue from the successful V2 build without flashing an incomplete kernel.
+V3 makes two concrete corrections immediately:
+1) Forces exact OEM kernelrelease: 3.0.8-g883717a-dirty (no trailing '+').
+2) Imports and enables Huawei's K3V2-era bq2419x_charger.c from the cm-11 reference tree.
 
-## Qué está reconstruido con evidencia OEM directa
+It also inventories Goodix / FT5X0X / GC0339 / S5K5CAG donor sources and records board I2C tables, so the next artifact tells us exactly what remains rather than guessing.
 
-### SN65DSI83
-Se recuperó del FIX10:
-- nombre del driver: sn65dsi83
-- dirección I2C de la plataforma: 0x2d
-- GPIO EN: 79 (confirmado por dmesg)
-- regulador: lcd-vcc
-- tensión: 2,600,000 uV
-- early-suspend/resume
-- nivel early_suspend: 149
-- tabla exacta de 43 pares registro/valor, byte por byte.
+Important
+---------
+DO NOT FLASH merely because GitHub Actions turns green.
+Open FLASHABILITY.txt in the artifact.
+Only FLASHABLE=YES means the automated parity gate found:
+- SWAP/ZRAM/XVMALLOC/LZO
+- HWT101 SN65 driver
+- exact kernelrelease
+- BQ2419X
+- active Goodix touch
+- GC0339
+- S5K5CAG
 
-La tabla tiene SHA256:
-61d06a9a8431195a7c6baf779c3040663e3ff99d8c1389fb187d27781ec8ef61
+FT5X0X is treated as secondary because the working OEM boot log shows it fails at I2C 0x38 while Goodix later becomes the active input device.
 
-### Cámara
-Se guardaron sin alterar los blobs OEM:
-- isp_init_regs_gc0339: 5872 bytes
-- gc0339_init_regs: 888 bytes
-- gc0339_framesize_full: 20 bytes
-- s5k5cag_sunny_init_regs: 36684 bytes
-- isp_init_regs_s5k5cag: 16 bytes
+No wipe commands are included. This package does not touch system/userdata.
 
-No se reinterpretan todavía como estructuras C porque hacerlo sin confirmar el layout Hik3 sería inventar datos.
+Why V2 was not final
+--------------------
+V2 zImage compiled, but its embedded release was 3.0.8-g883717a-dirty+ and its System.map did not contain Goodix, FT5X0X, GC0339, S5K5CAG or BQ2419X symbols.
 
-## Base de compilación
-https://github.com/xxx-man/android_kernel_huawei_s10-101x
-commit observado en nuestro build previo:
-d0ea9345cfc3992a3d959482579a8fc7f1108802
-
-Referencia Huawei K3V2 adicional:
-https://github.com/mangusta86/android_kernel_huawei_k3v2oem1
-
-## Memoria
-El workflow activa únicamente:
-CONFIG_SWAP=y
-CONFIG_STAGING=y
-CONFIG_ZRAM=y
-CONFIG_XVMALLOC=y
-CONFIG_LZO_COMPRESS=y
-CONFIG_LZO_DECOMPRESS=y
-# CONFIG_ZRAM_DEBUG is not set
-
-## Cómo obtener el zImage
-Sube todo este ZIP descomprimido a un repositorio GitHub y ejecuta:
-Actions -> HWT101 Hybrid Kernel V1 -> Run workflow
-
-El artifact resultante se llama:
-HWT101-HYBRID-KERNEL-V1
-
-## BOOT
-Cuando el zImage compile, scripts/pack_boot_fix10.py vuelve a usar el ramdisk y header de FIX10.
-NO hace wipe y NO modifica system/userdata.
-
-## Estado de seguridad
-SN65DSI83 tiene reconstrucción de alta confianza basada en el binario OEM.
-BQ2419X y S5K5CAG se apoyan en árboles Huawei K3V2.
-FT5X0X y GC0339 aún requieren terminar la reconstrucción tipada antes de considerar este kernel final.
-El touch activo observado en el dump fue Goodix, por lo que FT5X0X no debe reemplazar Goodix.
+Next action
+-----------
+Upload this package to the GitHub repository root and run:
+Actions -> HWT101 Hybrid Kernel V3 -> Run workflow
+Then download HWT101-HYBRID-KERNEL-V3 and send that ZIP back for analysis.

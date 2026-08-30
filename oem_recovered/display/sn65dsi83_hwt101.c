@@ -1,5 +1,5 @@
 /*
- * HWT101 SN65DSI83 bridge reconstruction - V2 OEM boot-sequence fix.
+ * HWT101 SN65DSI83 bridge reconstruction.
  *
  * Reconstructed from the working FIX10 Linux 3.0.8 kernel:
  *  - i2c driver name: sn65dsi83
@@ -13,7 +13,6 @@
  * This file intentionally stays on old Android early-suspend + Linux 3.0 APIs.
  */
 #include <linux/module.h>
-#include <linux/err.h>
 #include <linux/kernel.h>
 #include <linux/i2c.h>
 #include <linux/gpio.h>
@@ -118,18 +117,9 @@ static int hwt101_sn65_probe(struct i2c_client *client,
     gpio_direction_output(g_en_gpio, 1);
     msleep(10);
 
-    /*
-     * IMPORTANT: FIX10 OEM does NOT program the SN65 register table in probe.
-     * It only verifies I2C_FUNC_I2C here. The exact 43-register table is
-     * written later from late_resume(), after lcd-vcc is re-enabled and
-     * EN GPIO is raised. Reprogramming the bridge during probe can destroy
-     * the bootloader/fastboot display state and was the leading V1 gray-screen
-     * mismatch.
-     */
-    if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
-        printk(KERN_ERR "sn65dsi83: adapter lacks I2C_FUNC_I2C\n");
-        return -ENODEV;
-    }
+    ret = hwt101_sn65_write_regs(client);
+    if (ret)
+        printk(KERN_WARNING "sn65dsi83: initial table returned %d\n", ret);
 
     g_early.level = 149; /* exact level recovered from FIX10 machine code */
     g_early.suspend = hwt101_sn65_early_suspend;

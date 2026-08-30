@@ -1,0 +1,7 @@
+V2 baseline analyzed locally:
+zImage size: 4196480 bytes
+SHA256: 366e691e244935a03bc74e9fae894d427dee6235db83c69a4df88a60bf411964
+Embedded kernelrelease: 3.0.8-g883717a-dirty+
+Memory symbols present: sys_swapon, sys_swapoff, zram_init, xv_malloc, lzo1x_1_compress
+Display symbol present: hwt101_sn65_probe
+Hardware symbols absent from V2 System.map: goodix_ts_probe, ft5x0x_ts_probe, gc0339_init, s5k5cag_init, bq2419x_charger_probe

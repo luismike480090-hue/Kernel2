@@ -1,0 +1,48 @@
+HWT101 HYBRID V1 -> GRAY SCREEN: DISPLAY DIAGNOSIS
+==================================================
+
+High-confidence finding from FIX10 OEM machine code:
+
+1) sn65dsi83_probe() does NOT call ti_write_regs().
+   OEM sequence in probe:
+   - save client/global data
+   - regulator_get("lcd-vcc")
+   - regulator_set_voltage(..., 2600000, 2600000)
+   - msleep(10)
+   - regulator_enable()
+   - msleep(10)
+   - gpio_request(en_gpio)
+   - gpio_direction_output(en_gpio, 1)
+   - msleep(10)
+   - verify I2C adapter functionality
+   - register early suspend, level 149
+   - return
+
+2) ti_write_regs() is called by OEM only from sn65dsi83_late_resume():
+   regulator_enable -> msleep(2) -> GPIO EN high -> ti_write_regs().
+
+V1 mismatch:
+   V1 called hwt101_sn65_write_regs() directly inside probe().
+   That can overwrite the SN65DSI83 state inherited from the bootloader while
+   the Toshiba/K3 fastboot display path is still being attached. This is a
+   strong candidate for the immediate gray-screen failure.
+
+3) The S10 Toshiba path is not binary-equivalent to HWT101 OEM.
+   OEM vs S10 function sizes (bytes):
+     mipi_toshiba_panel_init       124 vs 64
+     mipi_toshiba_panel_set_fastboot 172 vs 144
+     mipi_toshiba_panel_remove     204 vs 164
+     mipi_toshiba_panel_on         224 vs 504
+     mipi_toshiba_panel_off        200 vs 296
+     toshiba_probe                 708 vs 572
+     mipi_dsi_probe                616 vs 468
+     ldi_probe                     728 vs 548
+   Therefore a V2 boot is still a test candidate, not final hardware parity.
+
+V2 change:
+   - removes all SN65 register writes from probe()
+   - adds i2c_check_functionality(..., I2C_FUNC_I2C), matching OEM behavior
+   - keeps exact late-resume table programming and timings
+   - no SYSTEM/USERDATA changes; only new kernel build when packaged later
+
+If V2 still gray-screens, next target is OEM Toshiba/MIPI/LDI parity, not ZRAM.
