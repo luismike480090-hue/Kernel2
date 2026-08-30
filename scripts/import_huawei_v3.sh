@@ -39,26 +39,39 @@ if [ -f "$R/drivers/power/bq2419x_charger.c" ]; then
     fi
   done
 
-  # BQ2419X also consumes Huawei K3V2 USB/OTG notifier API.
-  # Import the donor USB headers as a coherent set; do NOT invent the numeric
-  # value of USB_EVENT_OTG_ID.
-  if [ -d "$R/include/linux/usb" ]; then
-    mkdir -p "$K/include/linux/usb"
-    cp -a "$R/include/linux/usb/." "$K/include/linux/usb/"
-    say "Huawei USB headers: IMPORTED all include/linux/usb/*"
+  # Keep the S10 USB header set intact.
+  # V3.6 replaced include/linux/usb/* with the donor set and broke
+  # fsa880_i2c.c because USB_CONNECT / USB_DISCONNECT disappeared.
+  #
+  # BQ2419X needs the donor spelling USB_EVENT_OTG_ID.  The S10 USB API
+  # exposes the corresponding ID event as USB_EVENT_ID, so add a local
+  # compatibility alias ONLY to bq2419x_charger.c rather than replacing
+  # the whole USB API.
+  if grep -R -q -w 'USB_EVENT_ID' "$K/include/linux/usb" "$K/include/linux" 2>/dev/null; then
+    if ! grep -q 'HWT101_USB_EVENT_OTG_ID_COMPAT' "$K/drivers/power/bq2419x_charger.c"; then
+      sed -i '1i\
+/* HWT101_USB_EVENT_OTG_ID_COMPAT */\
+#ifndef USB_EVENT_OTG_ID\
+#define USB_EVENT_OTG_ID USB_EVENT_ID\
+#endif\
+' "$K/drivers/power/bq2419x_charger.c"
+    fi
+    say "BQ2419X USB_EVENT_OTG_ID -> USB_EVENT_ID compatibility: APPLIED"
   else
-    say "Huawei USB headers: donor include/linux/usb is MISSING"
+    say "ERROR: base S10 USB_EVENT_ID not found; refusing numeric guess"
     exit 1
   fi
 
-  OTG_DEF="$(grep -R -l -w 'USB_EVENT_OTG_ID' "$R/include" "$R/arch/arm/mach-k3v2/include" 2>/dev/null | head -n1 || true)"
-  if [ -z "$OTG_DEF" ]; then
-    say "USB_EVENT_OTG_ID definition NOT FOUND in donor headers"
-    say "Refusing to guess its numeric value."
+  # Prove the S10 FSA880 event API was NOT destroyed.
+  if ! grep -R -q -w 'USB_CONNECT' "$K/include" 2>/dev/null; then
+    say "ERROR: USB_CONNECT missing from base headers"
     exit 1
   fi
-  say "USB_EVENT_OTG_ID donor definition source: $OTG_DEF"
-  grep -n -C 5 -w 'USB_EVENT_OTG_ID' "$OTG_DEF" | tee -a "$REPORT" || true
+  if ! grep -R -q -w 'USB_DISCONNECT' "$K/include" 2>/dev/null; then
+    say "ERROR: USB_DISCONNECT missing from base headers"
+    exit 1
+  fi
+  say "S10 USB_CONNECT / USB_DISCONNECT API: PRESERVED"
 
   grep -q 'bq2419x_charger.o' "$K/drivers/power/Makefile" || \
     echo 'obj-$(CONFIG_BQ2419X_CHARGER) += bq2419x_charger.o' >> "$K/drivers/power/Makefile"
