@@ -1,0 +1,33 @@
+HWT101 AUTO V3.14 - MISSING HARDWARE PARITY
+
+Este paquete continúa V3.13 y ataca específicamente:
+  GOODIX
+  FT5X0X
+  GC0339
+
+Incluye dentro del repositorio los datos OEM exactos ya extraídos del kernel
+FIX10 para GC0339:
+  gc0339_init_blob.bin      888 bytes
+  gc0339_isp_blob.bin       5872 bytes
+  gc0339_framesize_blob.bin 20 bytes
+
+También incluye las referencias de símbolos OEM de Goodix, FT5X0X y GC0339.
+
+El nuevo prepare_missing_hwt101_drivers.py se ejecuta DESPUÉS de que Actions
+clone S10 y el donor Huawei. Busca no sólo el nombre exacto del probe sino
+también las APIs/comportamientos que sabemos que usa el OEM.
+
+IMPORTANTE:
+No mete automáticamente un Goodix/FT5X0X genérico como si fuera exacto.
+Eso podría compilar y dejar el touch muerto. Primero produce:
+  HWT101-MISSING-DRIVER-PARITY.txt
+
+GC0339 ya no queda como un simple "NOT FOUND": el workflow verifica que estén
+los tres blobs OEM exactos y que exista S5K5CAG del S10 como plantilla de la
+API K3 ISP para la reconstrucción.
+
+Todavía NO se debe llamar FINAL/flashable a un zImage que no tenga:
+  goodix_ts_probe
+  gc0339_init
+  s5k5cag_init
+además de SN65/BQ2419X/SWAP/ZRAM.

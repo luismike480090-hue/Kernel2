@@ -1,0 +1,12 @@
+00000000 t __initcall_goodix_ts_init7
+00000000 t goodix_tool_write
+00000000 t goodix_tool_read
+00000000 t goodix_ts_remove
+00000000 t goodix_ts_timer_handler
+00000000 t goodix_ts_irq_handler
+00000000 t goodix_ts_work_func
+00000000 t goodix_ts_probe
+00000000 t goodix_ts_late_resume
+00000000 t goodix_ts_early_suspend
+00000000 t goodix_ts_init
+00000000 t goodix_ts_id

@@ -1,0 +1,11 @@
+00000000 t ft5x0x_ts_init
+00000000 t __initcall_ft5x0x_ts_init6
+00000000 t ft5x0x_ts_late_resume
+00000000 t ft5x0x_ts_early_suspend
+00000000 t ft5x0x_ts_interrupt
+00000000 T ft5x0x_i2c_Read
+00000000 t ft5x0x_ts_probe
+00000000 t ft5x0x_ts_pen_irq_work
+00000000 T ft5x0x_i2c_Write
+00000000 t ft5x0x_ts_remove
+00000000 t ft5x0x_ts_id
