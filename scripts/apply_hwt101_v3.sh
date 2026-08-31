@@ -40,7 +40,7 @@ done
 set_cfg_n ZRAM_DEBUG
 
 # S10 already contains Huawei's native K3V2 S5K5CAG implementation and its
-# capture Makefile wires it through CONFIG_HIK3_CAMERA_S5K5CAG.  Enable the
+# capture Makefile wires it through CONFIG_HIK3_CAMERA_S5K5CAG. Enable the
 # native source instead of treating it as a missing external driver.
 if [ -f "$K/drivers/media/video/hik3/capture/s5k5cag/s5k5cag.c" ]; then
   set_cfg_y VIDEO_HIK3_CAMERA
@@ -50,6 +50,18 @@ fi
 # Enable imported Huawei BQ2419X when present.
 if [ -f "$K/drivers/power/bq2419x_charger.c" ]; then
   set_cfg_y BQ2419X_CHARGER
+fi
+
+# FINAL HWT101 connectivity parity.
+# Runtime evidence from the real tablet identifies Goodix touch and TI WiLink:
+# wl18xx/wlcore userspace modules + KIM/BTWilink platform devices.
+# FT5X0X is intentionally not enabled because it is not the active HWT101 panel.
+if [ -d "huawei-k3-reference/drivers/misc/ti-st" ]; then
+  python3 scripts/enable_ti_wilink_final.py "$K" huawei-k3-reference
+  cat HWT101-FINAL-TI-WILINK.txt
+else
+  echo "ERROR: Huawei K3V2 donor missing; cannot install exact TI WiLink transport"
+  exit 96
 fi
 
 # Keep module versioning setting from base, but never change it blindly.
@@ -63,4 +75,4 @@ echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> "$CFG"
 echo '# CONFIG_LOCALVERSION_AUTO is not set' >> "$CFG"
 rm -f "$K/.scmversion"
 
-echo "[V3] Overlay applied"
+echo "[V3 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink"
