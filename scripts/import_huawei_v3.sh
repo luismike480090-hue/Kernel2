@@ -147,3 +147,58 @@ find "$R/drivers" -type f \( \
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 python3 "$SCRIPT_DIR/import_link_providers.py" "$K" "$R"
 say "V3.10 exact battery/thermal/HIUSB link providers: IMPORTED"
+
+
+# HWT101 V3.15 - exact donor prototype bridge for BQ27510 callers.
+# The provider implementation is imported separately. GCC 4.6 still requires
+# a visible declaration at the call site because this tree builds with -Werror.
+python3 - "$K" "$R" <<'PY'
+from pathlib import Path
+import re, sys
+K,R=map(Path,sys.argv[1:3])
+caller=K/"drivers/power/bq27510_battery.c"
+text=caller.read_text(errors="ignore")
+symbols=["ipps_update_power_capacity","get_boot_into_recovery_flag"]
+
+def definition_signature(root,sym):
+    # Find a real function definition and extract return type/name/arguments,
+    # stopping before the opening brace. Avoid calls and prototypes.
+    rx=re.compile(r'(?ms)^([A-Za-z_][^;\n{}]*?\b'+re.escape(sym)+r'\s*\([^;{}]*?\))\s*\{')
+    hits=[]
+    for p in root.rglob("*.c"):
+        try: t=p.read_text(errors="ignore")
+        except: continue
+        m=rx.search(t)
+        if m:
+            sig=" ".join(m.group(1).split())
+            hits.append((p,sig))
+    return hits
+
+decls=[]
+for sym in symbols:
+    hits=definition_signature(R,sym)
+    if not hits:
+        print("V3.15 ERROR: exact donor definition not found:",sym)
+        sys.exit(93)
+    # Prefer mach-k3v2 / power / ipps sources.
+    hits.sort(key=lambda x:(0 if "mach-k3v2" in str(x[0]) else 1,
+                            0 if "/power/" in str(x[0]) else 1,
+                            len(str(x[0]))))
+    p,sig=hits[0]
+    # Strip storage qualifiers inappropriate for an external declaration.
+    sig=re.sub(r'^\s*static\s+','',sig)
+    sig=re.sub(r'^\s*inline\s+','',sig)
+    decl="extern "+sig+";"
+    decls.append(decl)
+    print("V3.15 exact declaration:",decl,"from",p.relative_to(R))
+
+marker="/* HWT101_V3_15_EXACT_BQ_PROTOTYPES */"
+if marker not in text:
+    insert=marker+"\n"+"\n".join(decls)+"\n"
+    # Put after includes, before first code.
+    ms=list(re.finditer(r'(?m)^#include[^\n]*\n',text))
+    pos=ms[-1].end() if ms else 0
+    text=text[:pos]+"\n"+insert+"\n"+text[pos:]
+    caller.write_text(text)
+PY
+
