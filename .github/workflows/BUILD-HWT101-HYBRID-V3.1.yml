@@ -26,7 +26,9 @@ jobs:
       - name: Inventory and import exact Huawei hardware sources
         run: |
           chmod +x scripts/*.sh scripts/*.py
-          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY.txt
+          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference
+          python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered
+ DONOR-HARDWARE-INVENTORY.txt
           python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-PRE.txt
 
       - name: Toolchain GCC 4.6.3
@@ -126,13 +128,32 @@ jobs:
           grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|ft5x0x_ts_probe|gc0339_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
           sha256sum kernel/arch/arm/boot/zImage > SHA256-zImage.txt
 
-      - name: Show build errors
+      - name: Deep automatic failure diagnostics
         if: failure()
         run: |
-          echo '========== BUILD TAIL =========='
-          tail -n 300 BUILD.log 2>/dev/null || true
-          echo '========== ERRORS =========='
-          grep -niE 'error:|undefined reference|multiple definition|No rule to make target|No such file|collect2:|make.*\*\*\*' BUILD.log 2>/dev/null | tail -n 200 || true
+          mkdir -p AUTO-DIAG
+          echo '========== BUILD TAIL ==========' | tee AUTO-DIAG/ERRORS.txt
+          tail -n 500 BUILD.log 2>/dev/null | tee -a AUTO-DIAG/ERRORS.txt || true
+          echo '========== ERRORS ==========' | tee -a AUTO-DIAG/ERRORS.txt
+          grep -niE 'error:|undefined reference|implicit declaration|multiple definition|No rule to make target|No such file|collect2:|make.*\*\*\*' BUILD.log 2>/dev/null | tail -n 400 | tee -a AUTO-DIAG/ERRORS.txt || true
+
+          cp LINK-PROVIDER-IMPORT.txt AUTO-DIAG/ 2>/dev/null || true
+          cp DONOR-HARDWARE-INVENTORY.txt AUTO-DIAG/ 2>/dev/null || true
+          cp kernel/.config AUTO-DIAG/kernel.config 2>/dev/null || true
+
+          # Capture the exact caller and every declaration/definition available
+          # in both trees for the current BQ27510 compile blockers.
+          cp kernel/drivers/power/bq27510_battery.c AUTO-DIAG/bq27510_battery-S10.c 2>/dev/null || true
+          cp huawei-k3-reference/drivers/power/bq27510_battery.c AUTO-DIAG/bq27510_battery-DONOR.c 2>/dev/null || true
+
+          for S in ipps_update_power_capacity get_boot_into_recovery_flag; do
+            {
+              echo "===== $S : S10 ====="
+              grep -R -n -B4 -A8 "$S" kernel --include='*.c' --include='*.h' 2>/dev/null || true
+              echo "===== $S : DONOR ====="
+              grep -R -n -B4 -A8 "$S" huawei-k3-reference --include='*.c' --include='*.h' 2>/dev/null || true
+            } > "AUTO-DIAG/${S}.txt"
+          done
 
       - name: Upload V3 artifact
         if: always()
@@ -157,4 +178,7 @@ jobs:
             SHA256-zImage.txt
             VERIFY-V3.txt
             FLASHABILITY.txt
+            LINK-PROVIDER-IMPORT.txt
+            HWT101-MISSING-DRIVER-PARITY.txt
+            AUTO-DIAG/
             oem_recovered/
