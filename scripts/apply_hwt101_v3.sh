@@ -39,6 +39,14 @@ for x in SWAP STAGING ZRAM XVMALLOC LZO_COMPRESS LZO_DECOMPRESS HWT101_SN65DSI83
 done
 set_cfg_n ZRAM_DEBUG
 
+# S10 already contains Huawei's native K3V2 S5K5CAG implementation and its
+# capture Makefile wires it through CONFIG_HIK3_CAMERA_S5K5CAG.  Enable the
+# native source instead of treating it as a missing external driver.
+if [ -f "$K/drivers/media/video/hik3/capture/s5k5cag/s5k5cag.c" ]; then
+  set_cfg_y VIDEO_HIK3_CAMERA
+  set_cfg_y HIK3_CAMERA_S5K5CAG
+fi
+
 # Enable imported Huawei BQ2419X when present.
 if [ -f "$K/drivers/power/bq2419x_charger.c" ]; then
   set_cfg_y BQ2419X_CHARGER
