@@ -57,7 +57,7 @@ else
   exit 96
 fi
 
-# HWT101 V3.32 OEM filesystem parity.
+# HWT101 V3.33 OEM filesystem parity.
 # YAFFS lives below MISC_FILESYSTEMS in fs/Kconfig and YAFFS_FS depends on
 # MTD_BLOCK. All parent/dependency symbols must therefore be forced on before
 # oldnoconfig resolves the configuration.
@@ -71,6 +71,18 @@ set_cfg_n YAFFS_ALWAYS_CHECK_CHUNK_ERASED
 set_cfg_n YAFFS_EMPTY_LOST_AND_FOUND
 set_cfg_n YAFFS_DISABLE_BLOCK_REFRESHING
 set_cfg_n YAFFS_DISABLE_BACKGROUND
+
+# The bundled YAFFS VFS glue predates removal of the Big Kernel Lock and still
+# includes linux/smp_lock.h. This 3.0.8 tree no longer provides that header,
+# and yaffs_vfs.c does not use lock_kernel()/unlock_kernel(); it uses its own
+# gross_lock mutex. Remove only the obsolete include, preserving YAFFS locking.
+if [ -f "$K/fs/yaffs2/yaffs_vfs.c" ]; then
+  sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' "$K/fs/yaffs2/yaffs_vfs.c"
+  if grep -Eq '\b(lock_kernel|unlock_kernel)\b' "$K/fs/yaffs2/yaffs_vfs.c"; then
+    echo "ERROR: YAFFS unexpectedly uses Big Kernel Lock calls after smp_lock.h removal"
+    exit 97
+  fi
+fi
 
 # HWT101 Wi-Fi parity: real unit uses external TI wl18xx/wlcore stack.
 set_cfg_n BCMDHD
@@ -86,4 +98,4 @@ echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> "$CFG"
 echo '# CONFIG_LOCALVERSION_AUTO is not set' >> "$CFG"
 rm -f "$K/.scmversion"
 
-echo "[V3.32 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink + OEM YAFFS2; Broadcom DHD removed"
+echo "[V3.33 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink + OEM YAFFS2 compatibility; Broadcom DHD removed"
