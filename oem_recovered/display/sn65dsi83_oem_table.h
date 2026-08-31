@@ -1,12 +1,6 @@
 /* Exact SN65DSI83 payload recovered from the working HWT101 FIX10 kernel.
- *
- * OEM ti_write_regs() at 0xc02711d0 performs:
- *   memcpy(local_payload, 0xc062ae3c + 4, 86)
- * and then creates 43 two-byte I2C messages.
- *
- * IMPORTANT: the four bytes at 0xc062ae3c are NOT transmitted.  The older
- * reconstruction incorrectly included those bytes and consequently dropped
- * registers 0x39..0x3e.  This table is the exact 86-byte transmitted window.
+ * OEM ti_write_regs() copies 86 bytes from 0xc062ae3c + 4 and sends exactly
+ * 43 two-byte I2C messages. The transmitted window ends at {0x3a,0x00}.
  */
 #ifndef _HWT101_SN65DSI83_OEM_TABLE_H
 #define _HWT101_SN65DSI83_OEM_TABLE_H
@@ -23,8 +17,8 @@ static const struct hwt101_sn65_reg hwt101_sn65_regs[] = {
     { 0x2C, 0x3C }, { 0x2D, 0x00 }, { 0x2E, 0x00 }, { 0x2F, 0x00 },
     { 0x30, 0x07 }, { 0x31, 0x00 }, { 0x32, 0x00 }, { 0x33, 0x00 },
     { 0x34, 0x3C }, { 0x35, 0x00 }, { 0x36, 0x00 }, { 0x37, 0x00 },
-    { 0x38, 0x00 }, { 0x39, 0x00 }, { 0x3A, 0x00 }, { 0x3B, 0x00 },
-    { 0x3C, 0x00 }, { 0x3D, 0x00 }, { 0x3E, 0x00 }
+    { 0x38, 0x00 }, { 0x39, 0x00 }, { 0x3A, 0x00 }
 };
 #define HWT101_SN65_REG_COUNT (sizeof(hwt101_sn65_regs)/sizeof(hwt101_sn65_regs[0]))
+typedef char hwt101_sn65_exact_43_pairs[(HWT101_SN65_REG_COUNT == 43) ? 1 : -1];
 #endif
