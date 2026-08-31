@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.5
+name: HWT101 Hybrid Kernel V3.6
 
 on:
   workflow_dispatch:
@@ -54,6 +54,11 @@ jobs:
       - name: Apply V3 HWT101 overlay and exact release
         run: |
           bash scripts/apply_hwt101_v3.sh kernel
+
+      - name: Enable exact link-provider CONFIG guards
+        run: |
+          python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
+          cat LINK-PROVIDER-CONFIGS.txt
 
       - name: Resolve oldconfig and prove kernelrelease
         working-directory: kernel
@@ -161,7 +166,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.5
+          name: HWT101-HYBRID-KERNEL-V3.6
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
