@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import re, sys, shutil
+import re, sys
 
 if len(sys.argv) != 3:
     print('usage: fix_hwt101_final_link.py <kernel> <huawei-reference>')
@@ -25,12 +25,6 @@ def force_obj(makefile,obj,comment):
     if obj not in t:
         t+='\nobj-y += '+obj+'  # '+comment+'\n'; wr(p,t)
 
-def has_global_definition(text,name):
-    for line in text.splitlines():
-        if re.search(r'\b'+re.escape(name)+r'\b',line) and ';' in line and not re.search(r'\bextern\b',line):
-            return True
-    return False
-
 # Remove known false-positive providers from older resolver versions.
 for rel,obj in [('drivers/mfd/Makefile','da903x.o'),('arch/arm/mach-omap2/Makefile','pm-debug.o')]:
     p=K/rel
@@ -38,21 +32,27 @@ for rel,obj in [('drivers/mfd/Makefile','da903x.o'),('arch/arm/mach-omap2/Makefi
         t=rd(p); lines=t.splitlines(); n=[x for x in lines if not(obj in x and 'HWT101 exact link provider' in x)]
         if n!=lines: wr(p,'\n'.join(n)+'\n')
 
-# notifier_list: Huawei K3V2 battery core, never da903x.
-bci=K/'drivers/power/bq_bci_battery.c'; donor_bci=R/'drivers/power/bq_bci_battery.c'
-if not bci.exists():
-    if not donor_bci.exists(): raise RuntimeError('exact Huawei donor bq_bci_battery.c not found')
-    bci.parent.mkdir(parents=True, exist_ok=True); shutil.copy2(donor_bci,bci); print('IMPORTED',bci.relative_to(K))
-t=rd(bci)
-if 'BLOCKING_NOTIFIER_HEAD(notifier_list);' not in t:
-    pos=t.find('#define WINDOW_LEN')
-    if pos<0: raise RuntimeError('WINDOW_LEN marker not found in bq_bci_battery.c')
-    t=t[:pos]+'BLOCKING_NOTIFIER_HEAD(notifier_list);\n\n'+t[pos:]; wr(bci,t)
-force_obj('drivers/power/Makefile','bq_bci_battery.o','HWT101 OEM charging notifier provider')
+# notifier_list: provide ONLY the ABI symbol needed by the imported charger code.
+# Do NOT import the complete Huawei bq_bci_battery.c: that donor core depends on
+# POWER_SUPPLY_PROP_CAPACITY_RM/FCC which do not exist in the S10 power_supply ABI.
+pmk=K/'drivers/power/Makefile'
+pmt=rd(pmk)
+lines=pmt.splitlines()
+clean=[]
+for line in lines:
+    if 'bq_bci_battery.o' in line and ('HWT101 OEM charging notifier provider' in line or 'HWT101 exact link provider' in line):
+        print('REMOVED forced donor core:', line.strip())
+        continue
+    clean.append(line)
+if clean != lines:
+    wr(pmk,'\n'.join(clean)+'\n')
 
-# IPPS ABI: the imported Huawei battery code requires the final enum command.
-# Do not hard-code a numeric value: append the exact donor command at the end of
-# S10's enum ipps_cmd_type, preserving the ordering of every existing S10 command.
+notifier_compat=K/'drivers/power/hwt101_bq_notifier_compat.c'
+notifier_compat.write_text('''/* HWT101 minimal Huawei charging notifier ABI.\n * Keep the native S10 power-supply core untouched. */\n#include <linux/notifier.h>\n\nBLOCKING_NOTIFIER_HEAD(notifier_list);\n''')
+print('PATCHED',notifier_compat.relative_to(K))
+force_obj('drivers/power/Makefile','hwt101_bq_notifier_compat.o','HWT101 OEM charging notifier ABI')
+
+# IPPS ABI: donor Huawei has one extra command at the end of enum ipps_cmd_type.
 ipps_h=K/'include/linux/ipps.h'; ih=rd(ipps_h)
 if 'IPPS_UPDATE_POWER_CAPACITY' not in ih:
     em=re.search(r'(enum\s+ipps_cmd_type\s*\{)(.*?)(\n\s*\};)',ih,re.S)
@@ -68,7 +68,7 @@ dst=K/'arch/arm/mach-k3v2/ipps-core.c'; src=R/'arch/arm/mach-k3v2/ipps-core.c'; 
 if not re.search(r'(?m)^\s*int\s+ipps_update_power_capacity\s*\(',t):
     t+='\n\n/* HWT101 exact Huawei K3V2 API */\n'+fn_extract(rd(src),'ipps_update_power_capacity')+'\n'; wr(dst,t)
 
-# Add matching public prototype if the S10 header does not already expose it.
+# Public prototype matching the donor ABI.
 ih=rd(ipps_h)
 if not re.search(r'\bipps_update_power_capacity\s*\(',ih):
     proto='\nint ipps_update_power_capacity(struct ipps_client *client, unsigned int object,\n\t\t\tint *param);\n'
@@ -77,7 +77,7 @@ if not re.search(r'\bipps_update_power_capacity\s*\(',ih):
     ih=ih[:pos]+proto+'\n'+ih[pos:]
     wr(ipps_h,ih)
 
-# Recovery compatibility getter. Avoid fragile extraction of donor-private storage.
+# Recovery compatibility getter. Avoid importing donor-private boot-state storage.
 dst=K/'arch/arm/mach-k3v2/common.c'; t=rd(dst)
 if not re.search(r'(?m)^\s*unsigned\s+int\s+get_boot_into_recovery_flag\s*\(',t):
     block='''\n\n/* HWT101 recovery compatibility API. */\nstatic unsigned int hwt101_enter_recovery_flag;\nunsigned int get_boot_into_recovery_flag(void)\n{\n    return hwt101_enter_recovery_flag;\n}\n'''
@@ -94,9 +94,10 @@ compat.write_text('''/* HWT101 K3V2 compatibility for OEM charging glue. */\n#in
 print('PATCHED',compat.relative_to(K))
 force_obj('arch/arm/mach-k3v2/Makefile','hwt101_oem_compat.o','HWT101 final OEM glue')
 
-# PRE-FLIGHT: validate historical blockers and the IPPS enum before spending build time.
+# PRE-FLIGHT: validate historical blockers before spending build time.
 checks=[]
-checks.append(('notifier_list', 'BLOCKING_NOTIFIER_HEAD(notifier_list)' in rd(bci)))
+checks.append(('notifier_list minimal ABI', 'BLOCKING_NOTIFIER_HEAD(notifier_list)' in rd(notifier_compat)))
+checks.append(('donor bq_bci not forced', not any('bq_bci_battery.o' in x and 'HWT101' in x for x in rd(pmk).splitlines())))
 checks.append(('IPPS_UPDATE_POWER_CAPACITY enum', 'IPPS_UPDATE_POWER_CAPACITY' in rd(ipps_h)))
 checks.append(('ipps_update_power_capacity', bool(re.search(r'\bipps_update_power_capacity\s*\(',rd(K/'arch/arm/mach-k3v2/ipps-core.c')))))
 checks.append(('ipps_update_power_capacity prototype', bool(re.search(r'\bipps_update_power_capacity\s*\(',rd(ipps_h)))))
@@ -106,7 +107,7 @@ checks.append(('get_charger_name', 'int get_charger_name(void)' in rd(compat)))
 checks.append(('hiusb_charger_registe_notifier', 'hiusb_charger_registe_notifier' in rd(compat)))
 checks.append(('hiusb_charger_unregiste_notifier', 'hiusb_charger_unregiste_notifier' in rd(compat)))
 failed=[n for n,ok in checks if not ok]
-if failed: raise RuntimeError('V3.26 preflight failed: '+', '.join(failed))
+if failed: raise RuntimeError('V3.27 preflight failed: '+', '.join(failed))
 
-Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.26 final-link repair\nnotifier_list: Huawei K3V2 bq_bci_battery core\nIPPS_UPDATE_POWER_CAPACITY: appended to S10 ipps_cmd_type using Huawei donor ABI ordering; no guessed numeric constant\nipps_update_power_capacity: exact donor implementation plus public prototype\nget_boot_into_recovery_flag: stable compatibility getter\nwakeup_timer_seconds: exact K3V2 declaration\nHIUSB ABI: FSA880-safe compatibility provider; CONFIG_SUPPORT_MICRO_USB_PORT remains disabled\npreflight: historical unresolved APIs plus IPPS enum/prototype checked before compilation\n''')
+Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.27 minimal final-link repair\nnotifier_list: standalone BLOCKING_NOTIFIER_HEAD ABI; full donor bq_bci core intentionally NOT imported\npower_supply ABI: S10 native enum preserved; no CAPACITY_RM/FCC additions\nIPPS_UPDATE_POWER_CAPACITY: exact Huawei donor ABI ordering\nipps_update_power_capacity: exact donor implementation plus public prototype\nget_boot_into_recovery_flag: stable compatibility getter\nwakeup_timer_seconds: exact K3V2 declaration\nHIUSB ABI: FSA880-safe compatibility provider; CONFIG_SUPPORT_MICRO_USB_PORT remains disabled\npreflight: rejects reintroduction of forced donor bq_bci_battery.o\n''')
 print(Path('HWT101-FINAL-LINK-PATCH.txt').read_text())
