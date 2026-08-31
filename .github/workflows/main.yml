@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.28 GOODIX
+name: HWT101 Hybrid Kernel V3.29 GC0339
 
 on:
   workflow_dispatch:
@@ -65,6 +65,15 @@ jobs:
           cat HWT101-GOODIX-PORT.txt
           grep -n 'hwt101_goodix' kernel/drivers/input/touchscreen/Makefile
 
+      - name: Reconstruct HWT101 GC0339 camera
+        run: |
+          python3 scripts/port_gc0339_hwt101.py kernel
+          cat HWT101-GC0339-PORT.txt
+          grep -n 'gc0339' kernel/drivers/media/video/hik3/capture/Makefile
+          test -s kernel/drivers/media/video/hik3/capture/gc0339/gc0339.c
+          grep -n 'static int gc0339_init' kernel/drivers/media/video/hik3/capture/gc0339/gc0339.c
+          grep -n 'GC0339_ISP_COUNT.*734' kernel/drivers/media/video/hik3/capture/gc0339/gc0339.c
+
       - name: Apply HWT101 final-link repair
         run: |
           python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
@@ -111,7 +120,7 @@ jobs:
               ;;
           esac
 
-      - name: Build V3.28 candidate
+      - name: Build V3.29 candidate
         working-directory: kernel
         shell: bash
         run: |
@@ -147,10 +156,14 @@ jobs:
           python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-POST.txt
           python3 scripts/verify_v3.py kernel | tee VERIFY-V3.txt
           grep -E ' (sys_swapon|sys_swapoff|zram_init|xv_malloc|lzo1x_1_compress)$' kernel/System.map > MEMORY-SYMBOLS.txt || true
-          grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|goodix_ts_work_func|ft5x0x_ts_probe|gc0339_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
+          grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|goodix_ts_work_func|ft5x0x_ts_probe|gc0339_init|gc0339_module_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
           sha256sum kernel/arch/arm/boot/zImage > SHA256-zImage.txt
           echo '===== HARDWARE SYMBOLS ====='
           cat HARDWARE-SYMBOLS.txt
+          if ! grep -Eq ' [tT] gc0339_init$' kernel/System.map; then
+            echo 'ERROR: reconstructed gc0339_init missing from linked kernel'
+            exit 95
+          fi
 
       - name: ALWAYS show build errors and linker context
         if: always()
@@ -180,6 +193,9 @@ jobs:
           echo "========== GOODIX PORT =========="
           cat HWT101-GOODIX-PORT.txt 2>/dev/null || true
           echo
+          echo "========== GC0339 PORT =========="
+          cat HWT101-GC0339-PORT.txt 2>/dev/null || true
+          echo
           echo "========== HIUSB PROVIDER REPORT =========="
           cat HIUSB-PROVIDER-REPORT.txt 2>/dev/null || true
           echo
@@ -192,11 +208,11 @@ jobs:
           echo "========== END DIAGNOSTICS =========="
           exit 0
 
-      - name: Upload V3.28 artifact
+      - name: Upload V3.29 artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.28-GOODIX
+          name: HWT101-HYBRID-KERNEL-V3.29-GC0339
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
@@ -219,5 +235,6 @@ jobs:
             HWT101-MISSING-DRIVER-PARITY.txt
             HWT101-FINAL-LINK-PATCH.txt
             HWT101-GOODIX-PORT.txt
+            HWT101-GC0339-PORT.txt
             AUTO-DIAG/
             oem_recovered/
