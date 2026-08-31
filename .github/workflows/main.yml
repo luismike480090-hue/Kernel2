@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.8
+name: HWT101 Hybrid Kernel V3.9
 
 on:
   workflow_dispatch:
@@ -145,40 +145,48 @@ jobs:
           grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|ft5x0x_ts_probe|gc0339_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
           sha256sum kernel/arch/arm/boot/zImage > SHA256-zImage.txt
 
-      - name: Deep automatic failure diagnostics
-        if: failure()
+      - name: ALWAYS show build errors and linker context
+        if: always()
         shell: bash
         run: |
           set +e
-          mkdir -p AUTO-DIAG
-          echo '========== BUILD TAIL ==========' | tee AUTO-DIAG/ERRORS.txt
-          tail -n 500 BUILD.log 2>/dev/null | tee -a AUTO-DIAG/ERRORS.txt || true
-          echo '========== ERRORS ==========' | tee -a AUTO-DIAG/ERRORS.txt
-          grep -niE 'error:|undefined reference|implicit declaration|multiple definition|No rule to make target|No such file|collect2:|make.*\*\*\*' BUILD.log 2>/dev/null | tail -n 400 | tee -a AUTO-DIAG/ERRORS.txt || true
-
-          cp LINK-PROVIDER-IMPORT.txt AUTO-DIAG/ 2>/dev/null || true
-          cp DONOR-HARDWARE-INVENTORY.txt AUTO-DIAG/ 2>/dev/null || true
-          cp kernel/.config AUTO-DIAG/kernel.config 2>/dev/null || true
-
-          # Capture the exact caller and every declaration/definition available
-          # in both trees for the current BQ27510 compile blockers.
-          cp kernel/drivers/power/bq27510_battery.c AUTO-DIAG/bq27510_battery-S10.c 2>/dev/null || true
-          cp huawei-k3-reference/drivers/power/bq27510_battery.c AUTO-DIAG/bq27510_battery-DONOR.c 2>/dev/null || true
-
-          for S in ipps_update_power_capacity get_boot_into_recovery_flag; do
-            {
-              echo "===== $S : S10 ====="
-              grep -R -n -B4 -A8 "$S" kernel --include='*.c' --include='*.h' 2>/dev/null || true
-              echo "===== $S : DONOR ====="
-              grep -R -n -B4 -A8 "$S" huawei-k3-reference --include='*.c' --include='*.h' 2>/dev/null || true
-            } > "AUTO-DIAG/${S}.txt"
-          done
+          echo "========== BUILD RESULT =========="
+          echo "job_status=${{ job.status }}"
+          echo
+          echo "========== LAST 250 BUILD LINES =========="
+          if [ -f BUILD.log ]; then
+            tail -n 250 BUILD.log
+          else
+            echo "BUILD.log NOT FOUND"
+          fi
+          echo
+          echo "========== ERRORS =========="
+          if [ -f BUILD.log ]; then
+            grep -nEi '(^|[ :])(error:|fatal error:|undefined reference|multiple definition|No rule to make target|implicit declaration|collect2:|ld:|make(\[[0-9]+\])?: \*\*\*)' BUILD.log | tail -n 300
+          fi
+          echo
+          echo "========== UNDEFINED REFERENCES =========="
+          if [ -f BUILD.log ]; then
+            grep -nE "undefined reference|collect2:|\\.tmp_vmlinux|vmlinux" BUILD.log | tail -n 300
+          fi
+          echo
+          echo "========== HIUSB PROVIDER REPORT =========="
+          cat HIUSB-PROVIDER-REPORT.txt 2>/dev/null || true
+          echo
+          echo "========== LINK PROVIDER CONFIGS =========="
+          cat LINK-PROVIDER-CONFIGS.txt 2>/dev/null || true
+          echo
+          echo "========== USB BOARD CONFIG =========="
+          grep -E 'CONFIG_FSA880_I2C|CONFIG_SUPPORT_MICRO_USB_PORT' kernel/.config 2>/dev/null || true
+          echo
+          echo "========== END DIAGNOSTICS =========="
+          exit 0
 
       - name: Upload V3 artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.8
+          name: HWT101-HYBRID-KERNEL-V3.9
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
