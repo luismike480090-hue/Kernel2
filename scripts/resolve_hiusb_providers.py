@@ -40,11 +40,23 @@ def force_object(src):
     if not mk.exists():
         mk.write_text("")
     txt=mk.read_text(errors="ignore")
-    # If object is already unconditionally built, nothing to do.
-    if re.search(r'(?m)^\s*obj-y\s*\+?=.*\b'+re.escape(obj)+r'\b',txt):
+
+    # CRITICAL V3.20:
+    # Never append a second obj-y for an object that the Makefile already
+    # references in ANY form (obj-y, obj-$(CONFIG_X), composite list, etc.).
+    # The previous V3.18 logic only detected unconditional obj-y and could
+    # therefore link hiusb_android.o twice, producing multiple definitions.
+    refs=[ln for ln in txt.splitlines()
+          if re.search(r'(^|[\s+=])'+re.escape(obj)+r'($|[\s\\])', ln)]
+    if refs:
+        print("V3.20: object already owned by Makefile:", obj)
+        for ln in refs:
+            print("   ", ln)
         return
+
+    # Only a genuinely absent object is forced.
     with mk.open("a") as f:
-        f.write("\n# HWT101 V3.18 exact HIUSB link provider\nobj-y += "+obj+"\n")
+        f.write("\n# HWT101 V3.20 exact HIUSB link provider (object was absent)\nobj-y += "+obj+"\n")
 
 report=[]
 for sym in SYMS:
