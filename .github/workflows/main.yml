@@ -1,0 +1,184 @@
+name: HWT101 Hybrid Kernel V3.3
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl python3
+
+      - name: Clone exact S10 K3V2 base
+        run: |
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+
+      - name: Clone Huawei K3V2 reference
+        run: |
+          git clone --depth 1 -b cm-11 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git huawei-k3-reference
+
+      - name: Inventory and import exact Huawei hardware sources
+        run: |
+          chmod +x scripts/*.sh scripts/*.py
+          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference
+          python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered
+ DONOR-HARDWARE-INVENTORY.txt
+          python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-PRE.txt
+
+      - name: Toolchain GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          test -n "$TC"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+
+      - name: Patch old Perl
+        working-directory: kernel
+        run: |
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure base
+        working-directory: kernel
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+
+      - name: Apply V3 HWT101 overlay and exact release
+        run: |
+          bash scripts/apply_hwt101_v3.sh kernel
+
+      - name: Resolve oldconfig and prove kernelrelease
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+
+          make LOCALVERSION= oldnoconfig
+
+          # This old tree prints kconfig status text to stdout even with -s.
+          # Extract the actual release token instead of trusting the full stdout.
+          KR_RAW="$(make -s LOCALVERSION= kernelrelease 2>&1 || true)"
+          printf '%s\n' "$KR_RAW" > ../KERNELRELEASE-RAW.txt
+
+          KR="$(printf '%s\n' "$KR_RAW" | grep -oE '3\.0\.8(-g[0-9a-f]+-dirty)?\+?' | tail -n 1 || true)"
+          KR="$(printf '%s' "$KR" | tr -d '\r\n[:space:]')"
+
+          printf '%s\n' "$KR" | tee ../KERNELRELEASE.txt
+          printf 'kernelrelease bytes: '
+          printf '%s' "$KR" | od -An -tx1
+          printf '\n'
+
+          case "$KR" in
+            3.0.8-g883717a-dirty)
+              echo "KERNELRELEASE OEM EXACTO: OK"
+              ;;
+            *)
+              echo "ERROR: kernelrelease inesperado: [$KR]"
+              echo "----- salida cruda de make kernelrelease -----"
+              cat ../KERNELRELEASE-RAW.txt
+              exit 1
+              ;;
+          esac
+
+      - name: Build V3 candidate
+        working-directory: kernel
+        run: |
+          set -o pipefail
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD.log
+
+      - name: Verify generated kernel release
+        if: success()
+        working-directory: kernel
+        run: |
+          set -e
+          EXPECTED="3.0.8-g883717a-dirty"
+          if [ -s include/config/kernel.release ]; then
+            ACTUAL="$(cat include/config/kernel.release)"
+          else
+            ACTUAL_RAW="$(make -s LOCALVERSION= kernelrelease 2>&1 || true)"
+            ACTUAL="$(printf '%s\n' "$ACTUAL_RAW" | grep -oE '3\.0\.8(-g[0-9a-f]+-dirty)?\+?' | tail -n 1 || true)"
+          fi
+          ACTUAL="$(printf '%s' "$ACTUAL" | tr -d '\r\n[:space:]')"
+          printf '%s\n' "$ACTUAL" | tee ../KERNELRELEASE-BUILT.txt
+          case "$ACTUAL" in
+            "$EXPECTED") echo "RELEASE DEL KERNEL COMPILADO: OK" ;;
+            *) echo "ERROR: release compilado inesperado: [$ACTUAL]"; exit 1 ;;
+          esac
+
+      - name: Hardware and symbol verification
+        if: success()
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-POST.txt
+          python3 scripts/verify_v3.py kernel | tee VERIFY-V3.txt
+          grep -E ' (sys_swapon|sys_swapoff|zram_init|xv_malloc|lzo1x_1_compress)$' kernel/System.map > MEMORY-SYMBOLS.txt || true
+          grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|ft5x0x_ts_probe|gc0339_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
+          sha256sum kernel/arch/arm/boot/zImage > SHA256-zImage.txt
+
+      - name: Deep automatic failure diagnostics
+        if: failure()
+        run: |
+          mkdir -p AUTO-DIAG
+          echo '========== BUILD TAIL ==========' | tee AUTO-DIAG/ERRORS.txt
+          tail -n 500 BUILD.log 2>/dev/null | tee -a AUTO-DIAG/ERRORS.txt || true
+          echo '========== ERRORS ==========' | tee -a AUTO-DIAG/ERRORS.txt
+          grep -niE 'error:|undefined reference|implicit declaration|multiple definition|No rule to make target|No such file|collect2:|make.*\*\*\*' BUILD.log 2>/dev/null | tail -n 400 | tee -a AUTO-DIAG/ERRORS.txt || true
+
+          cp LINK-PROVIDER-IMPORT.txt AUTO-DIAG/ 2>/dev/null || true
+          cp DONOR-HARDWARE-INVENTORY.txt AUTO-DIAG/ 2>/dev/null || true
+          cp kernel/.config AUTO-DIAG/kernel.config 2>/dev/null || true
+
+          # Capture the exact caller and every declaration/definition available
+          # in both trees for the current BQ27510 compile blockers.
+          cp kernel/drivers/power/bq27510_battery.c AUTO-DIAG/bq27510_battery-S10.c 2>/dev/null || true
+          cp huawei-k3-reference/drivers/power/bq27510_battery.c AUTO-DIAG/bq27510_battery-DONOR.c 2>/dev/null || true
+
+          for S in ipps_update_power_capacity get_boot_into_recovery_flag; do
+            {
+              echo "===== $S : S10 ====="
+              grep -R -n -B4 -A8 "$S" kernel --include='*.c' --include='*.h' 2>/dev/null || true
+              echo "===== $S : DONOR ====="
+              grep -R -n -B4 -A8 "$S" huawei-k3-reference --include='*.c' --include='*.h' 2>/dev/null || true
+            } > "AUTO-DIAG/${S}.txt"
+          done
+
+      - name: Upload V3 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-HYBRID-KERNEL-V3.3
+          if-no-files-found: warn
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/vmlinux
+            kernel/.config
+            BUILD.log
+            KERNELRELEASE.txt
+            KERNELRELEASE-RAW.txt
+            KERNELRELEASE-BUILT.txt
+            DONOR-HARDWARE-INVENTORY.txt
+            BOARD-I2C-INVENTORY-PRE.txt
+            BOARD-I2C-INVENTORY-POST.txt
+            MEMORY-SYMBOLS.txt
+            HARDWARE-SYMBOLS.txt
+            SHA256-zImage.txt
+            VERIFY-V3.txt
+            FLASHABILITY.txt
+            LINK-PROVIDER-IMPORT.txt
+            HWT101-MISSING-DRIVER-PARITY.txt
+            AUTO-DIAG/
+            oem_recovered/
