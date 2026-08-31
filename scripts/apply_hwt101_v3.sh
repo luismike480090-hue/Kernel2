@@ -57,11 +57,11 @@ else
   exit 96
 fi
 
-# HWT101 V3.31 OEM filesystem parity.
-# The stock HWT101 kallsyms contains init_yaffs_fs, yaffs2_mount and the full
-# YAFFS MTD glue. /system, /cache and /cust are NAND MTD partitions, therefore
-# YAFFS2 must be built into the kernel (not a module) so Android can mount them.
-for x in MTD MTD_BLOCK YAFFS_FS YAFFS_YAFFS1 YAFFS_YAFFS2 YAFFS_AUTO_YAFFS2 YAFFS_XATTR; do
+# HWT101 V3.32 OEM filesystem parity.
+# YAFFS lives below MISC_FILESYSTEMS in fs/Kconfig and YAFFS_FS depends on
+# MTD_BLOCK. All parent/dependency symbols must therefore be forced on before
+# oldnoconfig resolves the configuration.
+for x in MISC_FILESYSTEMS MTD MTD_BLOCK YAFFS_FS YAFFS_YAFFS1 YAFFS_YAFFS2 YAFFS_AUTO_YAFFS2 YAFFS_XATTR; do
   set_cfg_y "$x"
 done
 set_cfg_n YAFFS_9BYTE_TAGS
@@ -72,18 +72,13 @@ set_cfg_n YAFFS_EMPTY_LOST_AND_FOUND
 set_cfg_n YAFFS_DISABLE_BLOCK_REFRESHING
 set_cfg_n YAFFS_DISABLE_BACKGROUND
 
-# HWT101 V3.31 Wi-Fi parity.
-# The real HWT101 uses external TI wl18xx/wlcore/wlcore_sdio modules. Its OEM
-# kallsyms has no Broadcom DHD symbols. The S10 donor enables Broadcom by
-# default, so explicitly remove both donor DHD variants to avoid SDIO probing
-# and power-control conflicts with the TI WiLink device.
+# HWT101 Wi-Fi parity: real unit uses external TI wl18xx/wlcore stack.
 set_cfg_n BCMDHD
 set_cfg_n BCMDHD_BCM
 set_cfg_n BCMDHD_WEXT
 set_cfg_n DHD_USE_SCHED_SCAN
 
-# TFA9887 is intentionally not enabled: stock HWT101 kallsyms contains no
-# tfa9887 driver, while it does contain the TPA2028 left/right amplifier.
+# OEM kernel contains TPA2028 L/R, not a TFA9887 kernel driver.
 set_cfg_n TFA9887
 
 sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' "$CFG"
@@ -91,4 +86,4 @@ echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> "$CFG"
 echo '# CONFIG_LOCALVERSION_AUTO is not set' >> "$CFG"
 rm -f "$K/.scmversion"
 
-echo "[V3.31 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink + OEM YAFFS2; Broadcom DHD removed"
+echo "[V3.32 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink + OEM YAFFS2; Broadcom DHD removed"
