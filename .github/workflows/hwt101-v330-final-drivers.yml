@@ -1,0 +1,148 @@
+name: HWT101 V3.30 FINAL DRIVERS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl python3
+
+      - name: Clone exact HWT101 kernel base
+        run: |
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+          git clone --depth 1 -b cm-11 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git huawei-k3-reference
+
+      - name: Import repaired HWT101 hardware drivers
+        run: |
+          chmod +x scripts/*.sh scripts/*.py
+          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY.txt
+          python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered
+          python3 scripts/resolve_hiusb_providers.py kernel huawei-k3-reference
+
+      - name: GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name arm-unknown-linux-gnueabi-gcc | head -1)"
+          test -n "$TC"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+
+      - name: Patch old Perl
+        working-directory: kernel
+        run: |
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure OEM base and HWT101 overlay
+        working-directory: kernel
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+          cd ..
+          bash scripts/apply_hwt101_v3.sh kernel
+          python3 scripts/port_goodix_hwt101.py kernel
+          python3 scripts/port_gc0339_hwt101.py kernel
+          python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
+          python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
+
+      - name: Preserve stock external-module ABI
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -e
+          # Original HWT101 Wi-Fi/Bluetooth drivers live in /system as .ko.
+          # Keep module loading compatible; do NOT replace them with foreign drivers.
+          sed -i 's/^# CONFIG_MODULES is not set/CONFIG_MODULES=y/' .config
+          grep -q '^CONFIG_MODULES=y' .config || echo 'CONFIG_MODULES=y' >> .config
+          sed -i 's/^CONFIG_MODVERSIONS=.*/# CONFIG_MODVERSIONS is not set/' .config
+          grep -q '^# CONFIG_MODVERSIONS is not set' .config || echo '# CONFIG_MODVERSIONS is not set' >> .config
+          grep -q '^CONFIG_MODULE_UNLOAD=y' .config || echo 'CONFIG_MODULE_UNLOAD=y' >> .config
+
+      - name: Resolve config and verify HWT101 invariants
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= oldnoconfig
+          grep -q '^CONFIG_MODULES=y' .config
+          grep -q '^# CONFIG_MODVERSIONS is not set' .config
+          grep -q '^CONFIG_MMC_SDIO_DEVICE=y' .config
+          if grep -qx 'CONFIG_FSA880_I2C=y' .config && grep -qx 'CONFIG_SUPPORT_MICRO_USB_PORT=y' .config; then
+            echo 'ERROR: mutually exclusive USB board options enabled'; exit 94
+          fi
+          KR="$(make -s LOCALVERSION= kernelrelease 2>&1 | grep -oE '3\.0\.8(-g[0-9a-f]+-dirty)?\+?' | tail -1 | tr -d '\r\n[:space:]')"
+          echo "$KR" | tee ../KERNELRELEASE.txt
+          test "$KR" = '3.0.8-g883717a-dirty'
+
+      - name: Build kernel and modules
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= -j2 zImage modules V=0 2>&1 | tee ../BUILD-V330.log
+
+      - name: Verify final hardware and module ABI
+        shell: bash
+        run: |
+          set -e
+          MAP=kernel/System.map
+          OUT=FINAL-DRIVER-VERIFICATION.txt
+          : > "$OUT"
+          check_sym() {
+            label="$1"; pattern="$2"
+            if grep -Eq "$pattern" "$MAP"; then echo "OK   $label" | tee -a "$OUT"; else echo "MISS $label" | tee -a "$OUT"; return 1; fi
+          }
+          check_sym 'DISPLAY SN65DSI83' ' [tT] hwt101_sn65_probe$'
+          check_sym 'TOUCH GOODIX' ' [tT] goodix_ts_probe$'
+          check_sym 'CAMERA GC0339' ' [tT] gc0339_init$'
+          check_sym 'CAMERA S5K5CAG' ' [tT] s5k5cag_init$'
+          check_sym 'CHARGER BQ2419X' ' [tT] bq2419x_charger_probe$'
+          echo 'OK   FT5X0X intentionally not required (HWT101 uses Goodix)' | tee -a "$OUT"
+          echo 'OK   TI wl18xx/wlcore/wlcore_sdio stay as stock external /system modules' | tee -a "$OUT"
+          echo 'OK   TI btwilink stays as stock external /system module' | tee -a "$OUT"
+          echo 'OK   CONFIG_MODULES=y' | tee -a "$OUT"
+          echo 'OK   CONFIG_MODVERSIONS disabled (stock ABI behavior)' | tee -a "$OUT"
+          grep -E '^CONFIG_(MODULES|MODULE_UNLOAD|MMC_SDIO_DEVICE|YAFFS|MTD|BT|SND|SND_SOC)=' kernel/.config | sort >> "$OUT" || true
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V330.txt
+
+      - name: Inventory built modules
+        if: success()
+        run: |
+          find kernel -type f -name '*.ko' -print | sort | tee BUILT-MODULES.txt
+          grep -Ei 'yaffs|nand|mtd|bnep|bluetooth|snd|audio|goodix|gc0339|s5k5cag|bq2419|galcore' BUILT-MODULES.txt > RELEVANT-BUILT-MODULES.txt || true
+
+      - name: Upload V3.30 FINAL DRIVERS candidate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.30-FINAL-DRIVERS
+          if-no-files-found: warn
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/vmlinux
+            kernel/.config
+            BUILD-V330.log
+            KERNELRELEASE.txt
+            FINAL-DRIVER-VERIFICATION.txt
+            BUILT-MODULES.txt
+            RELEVANT-BUILT-MODULES.txt
+            SHA256-zImage-V330.txt
+            DONOR-HARDWARE-INVENTORY.txt
+            HWT101-FINAL-LINK-PATCH.txt
+            HWT101-GOODIX-PORT.txt
+            HWT101-GC0339-PORT.txt
