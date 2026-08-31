@@ -57,7 +57,7 @@ else
   exit 96
 fi
 
-# HWT101 V3.33 OEM filesystem parity.
+# HWT101 V3.34 OEM filesystem parity.
 # YAFFS lives below MISC_FILESYSTEMS in fs/Kconfig and YAFFS_FS depends on
 # MTD_BLOCK. All parent/dependency symbols must therefore be forced on before
 # oldnoconfig resolves the configuration.
@@ -72,15 +72,43 @@ set_cfg_n YAFFS_EMPTY_LOST_AND_FOUND
 set_cfg_n YAFFS_DISABLE_BLOCK_REFRESHING
 set_cfg_n YAFFS_DISABLE_BACKGROUND
 
-# The bundled YAFFS VFS glue predates removal of the Big Kernel Lock and still
-# includes linux/smp_lock.h. This 3.0.8 tree no longer provides that header,
-# and yaffs_vfs.c does not use lock_kernel()/unlock_kernel(); it uses its own
-# gross_lock mutex. Remove only the obsolete include, preserving YAFFS locking.
-if [ -f "$K/fs/yaffs2/yaffs_vfs.c" ]; then
-  sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' "$K/fs/yaffs2/yaffs_vfs.c"
-  if grep -Eq '\b(lock_kernel|unlock_kernel)\b' "$K/fs/yaffs2/yaffs_vfs.c"; then
+# Port the bundled older YAFFS VFS glue to this Linux 3.0.8 tree.
+# 1) Big Kernel Lock header is obsolete and unused by this YAFFS copy.
+# 2) file_system_type uses ->mount/mount_bdev instead of ->get_sb/get_sb_bdev.
+# Only VFS registration glue is changed; NAND/MTD/YAFFS logic is untouched.
+YAFFS_VFS="$K/fs/yaffs2/yaffs_vfs.c"
+if [ -f "$YAFFS_VFS" ]; then
+  sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' "$YAFFS_VFS"
+  if grep -Eq '\b(lock_kernel|unlock_kernel)\b' "$YAFFS_VFS"; then
     echo "ERROR: YAFFS unexpectedly uses Big Kernel Lock calls after smp_lock.h removal"
     exit 97
+  fi
+
+  python3 - "$YAFFS_VFS" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+s = p.read_text()
+old1 = '''static int yaffs_read_super(struct file_system_type *fs,\n\t\t\t    int flags, const char *dev_name,\n\t\t\t    void *data, struct vfsmount *mnt)\n{\n\n\treturn get_sb_bdev(fs, flags, dev_name, data,\n\t\t\t   yaffs_internal_read_super_mtd, mnt);\n}\n'''
+new1 = '''static struct dentry *yaffs_mount(struct file_system_type *fs,\n\t\t\t\t int flags, const char *dev_name, void *data)\n{\n\treturn mount_bdev(fs, flags, dev_name, data,\n\t\t\t  yaffs_internal_read_super_mtd);\n}\n'''
+old2 = '''static int yaffs2_read_super(struct file_system_type *fs,\n\t\t\t     int flags, const char *dev_name, void *data,\n\t\t\t     struct vfsmount *mnt)\n{\n\treturn get_sb_bdev(fs, flags, dev_name, data,\n\t\t\t   yaffs2_internal_read_super_mtd, mnt);\n}\n'''
+new2 = '''static struct dentry *yaffs2_mount(struct file_system_type *fs,\n\t\t\t\t  int flags, const char *dev_name, void *data)\n{\n\treturn mount_bdev(fs, flags, dev_name, data,\n\t\t\t  yaffs2_internal_read_super_mtd);\n}\n'''
+for old, new, label in ((old1, new1, 'yaffs'), (old2, new2, 'yaffs2')):
+    if old in s:
+        s = s.replace(old, new, 1)
+    elif new not in s:
+        raise SystemExit('ERROR: expected legacy %s mount block not found' % label)
+s = s.replace('\t.get_sb = yaffs_read_super,', '\t.mount = yaffs_mount,')
+s = s.replace('\t.get_sb = yaffs2_read_super,', '\t.mount = yaffs2_mount,')
+p.write_text(s)
+PY
+
+  grep -q 'mount_bdev(fs, flags, dev_name, data' "$YAFFS_VFS"
+  grep -q '^[[:space:]]*\.mount = yaffs_mount,' "$YAFFS_VFS"
+  grep -q '^[[:space:]]*\.mount = yaffs2_mount,' "$YAFFS_VFS"
+  if grep -Eq '\b(get_sb_bdev|\.get_sb[[:space:]]*=)' "$YAFFS_VFS"; then
+    echo "ERROR: legacy YAFFS get_sb VFS API still present"
+    exit 98
   fi
 fi
 
@@ -98,4 +126,4 @@ echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> "$CFG"
 echo '# CONFIG_LOCALVERSION_AUTO is not set' >> "$CFG"
 rm -f "$K/.scmversion"
 
-echo "[V3.33 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink + OEM YAFFS2 compatibility; Broadcom DHD removed"
+echo "[V3.34 FINAL] Overlay applied: display + Goodix + cameras + charger + TI WiLink + OEM YAFFS2 Linux-3.0 VFS compatibility; Broadcom DHD removed"
