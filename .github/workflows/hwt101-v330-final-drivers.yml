@@ -1,4 +1,4 @@
-name: HWT101 V3.30 FINAL DRIVERS
+name: HWT101 V3.32 FINAL DRIVERS
 
 on:
   workflow_dispatch:
@@ -61,8 +61,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          # Original HWT101 Wi-Fi/Bluetooth drivers live in /system as .ko.
-          # Keep module loading compatible; do NOT replace them with foreign drivers.
           sed -i 's/^# CONFIG_MODULES is not set/CONFIG_MODULES=y/' .config
           grep -q '^CONFIG_MODULES=y' .config || echo 'CONFIG_MODULES=y' >> .config
           sed -i 's/^CONFIG_MODVERSIONS=.*/# CONFIG_MODVERSIONS is not set/' .config
@@ -79,6 +77,13 @@ jobs:
           grep -q '^CONFIG_MODULES=y' .config
           grep -q '^# CONFIG_MODVERSIONS is not set' .config
           grep -q '^CONFIG_MMC_SDIO_DEVICE=y' .config
+          grep -q '^CONFIG_MISC_FILESYSTEMS=y' .config
+          grep -q '^CONFIG_MTD=y' .config
+          grep -q '^CONFIG_MTD_BLOCK=y' .config
+          grep -q '^CONFIG_YAFFS_FS=y' .config
+          grep -q '^CONFIG_YAFFS_YAFFS2=y' .config
+          grep -q '^# CONFIG_BCMDHD is not set' .config
+          grep -q '^# CONFIG_BCMDHD_BCM is not set' .config
           if grep -qx 'CONFIG_FSA880_I2C=y' .config && grep -qx 'CONFIG_SUPPORT_MICRO_USB_PORT=y' .config; then
             echo 'ERROR: mutually exclusive USB board options enabled'; exit 94
           fi
@@ -93,9 +98,9 @@ jobs:
           set -euo pipefail
           export ARCH=arm
           export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
-          make LOCALVERSION= -j2 zImage modules V=0 2>&1 | tee ../BUILD-V330.log
+          make LOCALVERSION= -j2 zImage modules V=0 2>&1 | tee ../BUILD-V332.log
 
-      - name: Verify final hardware and module ABI
+      - name: Verify final hardware and OEM filesystem parity
         shell: bash
         run: |
           set -e
@@ -111,13 +116,24 @@ jobs:
           check_sym 'CAMERA GC0339' ' [tT] gc0339_init$'
           check_sym 'CAMERA S5K5CAG' ' [tT] s5k5cag_init$'
           check_sym 'CHARGER BQ2419X' ' [tT] bq2419x_charger_probe$'
+          check_sym 'AUDIO TPA2028 LEFT' ' [tT] tpa2028_spk_l_init$'
+          check_sym 'AUDIO TPA2028 RIGHT' ' [tT] tpa2028_spk_r_init$'
+          check_sym 'TI SHARED TRANSPORT' ' [tT] st_register$'
+          check_sym 'TI KIM' ' [tT] kim_probe$'
+          check_sym 'BT WILINK' ' [tT] btwilink_init$'
+          check_sym 'YAFFS INIT' ' [tT] init_yaffs_fs$'
+          check_sym 'YAFFS2 MOUNT' ' [tT] yaffs2_mount$'
+          if grep -Eq ' [tT] (dhd_|wl_cfg80211_|dhd_module_init)' "$MAP"; then
+            echo 'ERROR Broadcom DHD symbols present' | tee -a "$OUT"
+            grep -E ' [tT] (dhd_|wl_cfg80211_|dhd_module_init)' "$MAP" | head -20 | tee -a "$OUT"
+            exit 97
+          else
+            echo 'OK   Broadcom DHD absent' | tee -a "$OUT"
+          fi
           echo 'OK   FT5X0X intentionally not required (HWT101 uses Goodix)' | tee -a "$OUT"
-          echo 'OK   TI wl18xx/wlcore/wlcore_sdio stay as stock external /system modules' | tee -a "$OUT"
-          echo 'OK   TI btwilink stays as stock external /system module' | tee -a "$OUT"
-          echo 'OK   CONFIG_MODULES=y' | tee -a "$OUT"
-          echo 'OK   CONFIG_MODVERSIONS disabled (stock ABI behavior)' | tee -a "$OUT"
-          grep -E '^CONFIG_(MODULES|MODULE_UNLOAD|MMC_SDIO_DEVICE|YAFFS|MTD|BT|SND|SND_SOC)=' kernel/.config | sort >> "$OUT" || true
-          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V330.txt
+          echo 'OK   TI wl18xx/wlcore/wlcore_sdio remain stock external /system modules' | tee -a "$OUT"
+          grep -E '^(CONFIG_(MODULES|MODULE_UNLOAD|MMC_SDIO_DEVICE|MISC_FILESYSTEMS|MTD|MTD_BLOCK|YAFFS.*|BT|SND|SND_SOC)=|# CONFIG_(BCMDHD|BCMDHD_BCM|MODVERSIONS) is not set)' kernel/.config | sort >> "$OUT"
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V332.txt
 
       - name: Inventory built modules
         if: success()
@@ -125,23 +141,24 @@ jobs:
           find kernel -type f -name '*.ko' -print | sort | tee BUILT-MODULES.txt
           grep -Ei 'yaffs|nand|mtd|bnep|bluetooth|snd|audio|goodix|gc0339|s5k5cag|bq2419|galcore' BUILT-MODULES.txt > RELEVANT-BUILT-MODULES.txt || true
 
-      - name: Upload V3.30 FINAL DRIVERS candidate
+      - name: Upload V3.32 FINAL DRIVERS candidate
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-V3.30-FINAL-DRIVERS
+          name: HWT101-V3.32-FINAL-DRIVERS
           if-no-files-found: warn
+          include-hidden-files: true
           path: |
             kernel/arch/arm/boot/zImage
             kernel/System.map
             kernel/vmlinux
             kernel/.config
-            BUILD-V330.log
+            BUILD-V332.log
             KERNELRELEASE.txt
             FINAL-DRIVER-VERIFICATION.txt
             BUILT-MODULES.txt
             RELEVANT-BUILT-MODULES.txt
-            SHA256-zImage-V330.txt
+            SHA256-zImage-V332.txt
             DONOR-HARDWARE-INVENTORY.txt
             HWT101-FINAL-LINK-PATCH.txt
             HWT101-GOODIX-PORT.txt
