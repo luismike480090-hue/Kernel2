@@ -20,12 +20,26 @@ def fn_extract(text,name):
             if depth==0: return text[start:i+1]
     raise RuntimeError('unterminated function: '+name)
 
+def force_obj(makefile,obj,comment):
+    p=K/makefile; t=rd(p)
+    if obj not in t:
+        t+='\nobj-y += '+obj+'  # '+comment+'\n'; wr(p,t)
+
+def has_global_definition(text,name):
+    # Accept normal definitions and macro-generated definitions. Exclude extern.
+    for line in text.splitlines():
+        if re.search(r'\b'+re.escape(name)+r'\b',line) and ';' in line and not re.search(r'\bextern\b',line):
+            return True
+    return False
+
+# Remove the two known false-positive providers from older resolver versions.
 for rel,obj in [('drivers/mfd/Makefile','da903x.o'),('arch/arm/mach-omap2/Makefile','pm-debug.o')]:
     p=K/rel
     if p.exists():
         t=rd(p); lines=t.splitlines(); n=[x for x in lines if not(obj in x and 'HWT101 exact link provider' in x)]
         if n!=lines: wr(p,'\n'.join(n)+'\n')
 
+# notifier_list: use the Huawei K3V2 battery core, never da903x.
 bci=K/'drivers/power/bq_bci_battery.c'; donor_bci=R/'drivers/power/bq_bci_battery.c'
 if not bci.exists():
     if not donor_bci.exists(): raise RuntimeError('exact Huawei donor bq_bci_battery.c not found')
@@ -35,48 +49,44 @@ if 'BLOCKING_NOTIFIER_HEAD(notifier_list);' not in t:
     pos=t.find('#define WINDOW_LEN')
     if pos<0: raise RuntimeError('WINDOW_LEN marker not found in bq_bci_battery.c')
     t=t[:pos]+'BLOCKING_NOTIFIER_HEAD(notifier_list);\n\n'+t[pos:]; wr(bci,t)
-pmk=K/'drivers/power/Makefile'; t=rd(pmk)
-if 'bq_bci_battery.o' not in t:
-    t+='\nobj-y += bq_bci_battery.o  # HWT101 OEM charging notifier provider\n'; wr(pmk,t)
+force_obj('drivers/power/Makefile','bq_bci_battery.o','HWT101 OEM charging notifier provider')
 
+# Exact Huawei IPPS implementation.
 dst=K/'arch/arm/mach-k3v2/ipps-core.c'; src=R/'arch/arm/mach-k3v2/ipps-core.c'; t=rd(dst)
-if not re.search(r'(?m)^int\s+ipps_update_power_capacity\s*\(',t):
+if not re.search(r'(?m)^\s*int\s+ipps_update_power_capacity\s*\(',t):
     t+='\n\n/* HWT101 exact Huawei K3V2 API */\n'+fn_extract(rd(src),'ipps_update_power_capacity')+'\n'; wr(dst,t)
 
-# Exact Huawei recovery API + every simple global variable referenced by it.
-dst=K/'arch/arm/mach-k3v2/common.c'; src=R/'arch/arm/mach-k3v2/common.c'; t=rd(dst); s=rd(src)
+# Recovery flag: DO NOT copy private donor storage. The API is a boolean getter;
+# keep one HWT101-local unsigned int backing value so this symbol cannot fail extraction
+# because Huawei's donor uses a different declaration form/attribute/macro.
+dst=K/'arch/arm/mach-k3v2/common.c'; t=rd(dst)
 if not re.search(r'(?m)^\s*unsigned\s+int\s+get_boot_into_recovery_flag\s*\(',t):
-    fn=fn_extract(s,'get_boot_into_recovery_flag'); prefix=''
-    for ident in ('enter_recovery_flag','boot_into_recovery_flag','recovery_flag'):
-        if re.search(r'\b'+re.escape(ident)+r'\b',fn) and not re.search(r'(?m)^\s*(?:static\s+)?(?:unsigned\s+int|int|u32)\s+'+re.escape(ident)+r'\b',t):
-            m=re.search(r'(?m)^\s*(?:static\s+)?(?:unsigned\s+int|int|u32)\s+'+re.escape(ident)+r'\s*(?:=\s*[^;\n]+)?\s*;',s)
-            if not m: raise RuntimeError('backing variable not found for '+ident)
-            prefix+=m.group(0).strip()+'\n'
-    t+='\n\n/* HWT101 exact Huawei K3V2 recovery API */\n'+prefix+fn+'\n'; wr(dst,t)
+    block='''\n\n/* HWT101 recovery compatibility API.\n * Required by imported Huawei battery code.  The S10 base has no matching\n * exported getter/storage, so keep a local zero-initialized flag instead of\n * importing unrelated donor boot-state internals. */\nstatic unsigned int hwt101_enter_recovery_flag;\nunsigned int get_boot_into_recovery_flag(void)\n{\n    return hwt101_enter_recovery_flag;\n}\n'''
+    t+=block; wr(dst,t)
 
+# wakeup_timer_seconds: exact K3V2 donor declaration. Never pull OMAP pm-debug.
 wake_src=R/'arch/arm/mach-k3v2/k3v2_wakeup_timer.c'; s=rd(wake_src)
 vm=re.search(r'(?m)^\s*(?!extern\b)(?:static\s+)?(?:unsigned\s+int|u32)\s+wakeup_timer_seconds\s*(?:=\s*[^;\n]+)?\s*;',s)
 if not vm: raise RuntimeError('exact K3V2 wakeup_timer_seconds not found')
 
+# FSA880-safe HIUSB ABI compatibility. Do not enable CONFIG_SUPPORT_MICRO_USB_PORT,
+# because board-k3v2oem1 explicitly conflicts with CONFIG_FSA880_I2C.
 compat=K/'arch/arm/mach-k3v2/hwt101_oem_compat.c'
-compat.write_text('''/* HWT101 K3V2 compatibility for OEM charging glue. */
-#include <linux/kernel.h>
-#include <linux/types.h>
-#include <linux/notifier.h>
-#include <linux/usb/hiusb_android.h>
-
-%s
-
-static ATOMIC_NOTIFIER_HEAD(hwt101_charger_type_notifier_head);
-static int hwt101_charger_type = CHARGER_REMOVED;
-int get_charger_name(void) { return hwt101_charger_type; }
-int hiusb_charger_registe_notifier(struct notifier_block *nb) { return atomic_notifier_chain_register(&hwt101_charger_type_notifier_head, nb); }
-int hiusb_charger_unregiste_notifier(struct notifier_block *nb) { return atomic_notifier_chain_unregister(&hwt101_charger_type_notifier_head, nb); }
-''' % vm.group(0).strip())
+compat.write_text('''/* HWT101 K3V2 compatibility for OEM charging glue. */\n#include <linux/kernel.h>\n#include <linux/types.h>\n#include <linux/notifier.h>\n#include <linux/usb/hiusb_android.h>\n\n%s\n\nstatic ATOMIC_NOTIFIER_HEAD(hwt101_charger_type_notifier_head);\nstatic int hwt101_charger_type = CHARGER_REMOVED;\nint get_charger_name(void) { return hwt101_charger_type; }\nint hiusb_charger_registe_notifier(struct notifier_block *nb) { return atomic_notifier_chain_register(&hwt101_charger_type_notifier_head, nb); }\nint hiusb_charger_unregiste_notifier(struct notifier_block *nb) { return atomic_notifier_chain_unregister(&hwt101_charger_type_notifier_head, nb); }\n''' % vm.group(0).strip())
 print('PATCHED',compat.relative_to(K))
-mk=K/'arch/arm/mach-k3v2/Makefile'; t=rd(mk)
-if 'hwt101_oem_compat.o' not in t:
-    t+='\nobj-y += hwt101_oem_compat.o  # HWT101 final OEM glue\n'; wr(mk,t)
+force_obj('arch/arm/mach-k3v2/Makefile','hwt101_oem_compat.o','HWT101 final OEM glue')
 
-Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.24 final-link repair\nnotifier_list: exact donor bq_bci_battery.c\nrecovery API: exact donor function plus enter_recovery_flag backing variable\nwakeup_timer_seconds: K3V2 provider, no OMAP\nipps_update_power_capacity: exact donor implementation\nHIUSB APIs: FSA880-safe provider\n''')
+# PRE-FLIGHT: fail here with a precise reason rather than wasting a full build.
+checks=[]
+checks.append(('notifier_list', 'BLOCKING_NOTIFIER_HEAD(notifier_list)' in rd(bci)))
+checks.append(('ipps_update_power_capacity', bool(re.search(r'\bipps_update_power_capacity\s*\(',rd(K/'arch/arm/mach-k3v2/ipps-core.c')))))
+checks.append(('get_boot_into_recovery_flag', bool(re.search(r'\bget_boot_into_recovery_flag\s*\(',rd(K/'arch/arm/mach-k3v2/common.c')))))
+checks.append(('wakeup_timer_seconds', 'wakeup_timer_seconds' in rd(compat)))
+checks.append(('get_charger_name', 'int get_charger_name(void)' in rd(compat)))
+checks.append(('hiusb_charger_registe_notifier', 'hiusb_charger_registe_notifier' in rd(compat)))
+checks.append(('hiusb_charger_unregiste_notifier', 'hiusb_charger_unregiste_notifier' in rd(compat)))
+failed=[n for n,ok in checks if not ok]
+if failed: raise RuntimeError('V3.25 preflight failed: '+', '.join(failed))
+
+Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.25 robust final-link repair\nnotifier_list: Huawei K3V2 bq_bci_battery core; da903x false provider removed\nipps_update_power_capacity: exact donor implementation\nget_boot_into_recovery_flag: stable local compatibility getter; no fragile donor-variable regex\nwakeup_timer_seconds: exact K3V2 declaration; OMAP false provider removed\nHIUSB ABI: FSA880-safe compatibility provider; CONFIG_SUPPORT_MICRO_USB_PORT remains disabled\npreflight: all seven historical unresolved APIs checked before compilation\n''')
 print(Path('HWT101-FINAL-LINK-PATCH.txt').read_text())
