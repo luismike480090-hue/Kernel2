@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.7
+name: HWT101 Hybrid Kernel V3.8
 
 on:
   workflow_dispatch:
@@ -28,6 +28,8 @@ jobs:
           chmod +x scripts/*.sh scripts/*.py
           bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY.txt
           python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered
+          python3 scripts/resolve_hiusb_providers.py kernel huawei-k3-reference
+          cat HIUSB-PROVIDER-REPORT.txt
           python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-PRE.txt
 
       - name: Toolchain GCC 4.6.3
@@ -176,7 +178,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.7
+          name: HWT101-HYBRID-KERNEL-V3.8
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
