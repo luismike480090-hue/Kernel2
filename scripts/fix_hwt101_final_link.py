@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import re, sys
+import re, sys, shutil
 
 if len(sys.argv) != 3:
     print('usage: fix_hwt101_final_link.py <kernel> <huawei-reference>')
@@ -28,14 +28,28 @@ for rel,obj in [('drivers/mfd/Makefile','da903x.o'),('arch/arm/mach-omap2/Makefi
         if n!=lines: wr(p,'\n'.join(n)+'\n')
 
 # Correct charging notifier owner.
-bci=K/'drivers/power/bq_bci_battery.c'; t=rd(bci)
+# The S10 base does not contain bq_bci_battery.c. Import the exact Huawei K3V2 donor file if missing.
+bci=K/'drivers/power/bq_bci_battery.c'
+donor_bci=R/'drivers/power/bq_bci_battery.c'
+if not bci.exists():
+    if not donor_bci.exists():
+        raise RuntimeError('exact Huawei donor bq_bci_battery.c not found')
+    bci.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(donor_bci, bci)
+    print('IMPORTED', bci.relative_to(K))
+
+t=rd(bci)
 if 'BLOCKING_NOTIFIER_HEAD(notifier_list);' not in t:
     pos=t.find('#define WINDOW_LEN')
     if pos<0: raise RuntimeError('WINDOW_LEN marker not found in bq_bci_battery.c')
-    t=t[:pos]+'BLOCKING_NOTIFIER_HEAD(notifier_list);\n\n'+t[pos:]; wr(bci,t)
+    t=t[:pos]+'BLOCKING_NOTIFIER_HEAD(notifier_list);\n\n'+t[pos:]
+    wr(bci,t)
+
 pmk=K/'drivers/power/Makefile'; t=rd(pmk)
-if not re.search(r'(?m)^obj-y\s*\+=\s*bq_bci_battery\.o\b',t):
-    t+='\nobj-y += bq_bci_battery.o  # HWT101 OEM charging notifier provider\n'; wr(pmk,t)
+# Avoid duplicate inclusion. If bq_bci_battery.o is already referenced under any CONFIG, keep it.
+if 'bq_bci_battery.o' not in t:
+    t+='\nobj-y += bq_bci_battery.o  # HWT101 OEM charging notifier provider\n'
+    wr(pmk,t)
 
 # Exact Huawei IPPS API.
 dst=K/'arch/arm/mach-k3v2/ipps-core.c'; src=R/'arch/arm/mach-k3v2/ipps-core.c'; t=rd(dst)
@@ -53,7 +67,8 @@ if not re.search(r'(?m)^unsigned\s+int\s+get_boot_into_recovery_flag\s*\(',t):
     t+='\n\n/* HWT101 exact Huawei K3V2 recovery API */\n'+prefix+fn+'\n'; wr(dst,t)
 
 # Correct K3V2 wake timer variable type/provider (never OMAP).
-s=rd(R/'arch/arm/mach-k3v2/k3v2_wakeup_timer.c')
+wake_src=R/'arch/arm/mach-k3v2/k3v2_wakeup_timer.c'
+s=rd(wake_src)
 vm=re.search(r'(?m)^(?!\s*extern\b)(?:static\s+)?(?:unsigned\s+int|u32)\s+wakeup_timer_seconds\s*(?:=\s*[^;\n]+)?\s*;',s)
 if not vm: raise RuntimeError('exact K3V2 wakeup_timer_seconds not found')
 
@@ -90,5 +105,5 @@ mk=K/'arch/arm/mach-k3v2/Makefile'; t=rd(mk)
 if 'hwt101_oem_compat.o' not in t:
     t+='\nobj-y += hwt101_oem_compat.o  # HWT101 final OEM glue\n'; wr(mk,t)
 
-Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.21 final-link repair\nnotifier_list: bq_bci_battery.c\nwakeup_timer_seconds: K3V2 provider type, no OMAP\nipps_update_power_capacity: exact donor implementation\nget_boot_into_recovery_flag: exact donor implementation\nHIUSB APIs: FSA880-safe provider, micro-USB board option remains disabled\n''')
+Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.22 final-link repair\nnotifier_list: exact donor bq_bci_battery.c imported when absent\nwakeup_timer_seconds: K3V2 provider type, no OMAP\nipps_update_power_capacity: exact donor implementation\nget_boot_into_recovery_flag: exact donor implementation\nHIUSB APIs: FSA880-safe provider, micro-USB board option remains disabled\n''')
 print(Path('HWT101-FINAL-LINK-PATCH.txt').read_text())
