@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.6
+name: HWT101 Hybrid Kernel V3.7
 
 on:
   workflow_dispatch:
@@ -59,6 +59,16 @@ jobs:
         run: |
           python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
           cat LINK-PROVIDER-CONFIGS.txt
+
+      - name: Verify USB board invariant
+        shell: bash
+        run: |
+          echo "===== USB BOARD CONFIG ====="
+          grep -E 'CONFIG_FSA880_I2C|CONFIG_SUPPORT_MICRO_USB_PORT' kernel/.config || true
+          if grep -qx 'CONFIG_FSA880_I2C=y' kernel/.config && grep -qx 'CONFIG_SUPPORT_MICRO_USB_PORT=y' kernel/.config; then
+            echo "ERROR: mutually exclusive board options are both enabled"
+            exit 94
+          fi
 
       - name: Resolve oldconfig and prove kernelrelease
         working-directory: kernel
@@ -166,7 +176,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.6
+          name: HWT101-HYBRID-KERNEL-V3.7
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
