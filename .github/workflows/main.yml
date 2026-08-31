@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.9
+name: HWT101 Hybrid Kernel V3.10
 
 on:
   workflow_dispatch:
@@ -186,7 +186,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.9
+          name: HWT101-HYBRID-KERNEL-V3.10
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
