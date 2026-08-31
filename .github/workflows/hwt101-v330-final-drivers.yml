@@ -1,4 +1,4 @@
-name: HWT101 V3.32 FINAL DRIVERS
+name: HWT101 V3.35 SAFE BOOT
 
 on:
   workflow_dispatch:
@@ -55,6 +55,13 @@ jobs:
           python3 scripts/port_gc0339_hwt101.py kernel
           python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
           python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
+          # V3.35 SAFE: the reconstructed SN65DSI83 was the major non-OEM
+          # display path in V3.34 and produced a gray-screen hardware boot.
+          # Do not let it touch the bridge. Preserve the base K3FB/MIPI path
+          # and bootloader-programmed bridge state until the exact OEM driver
+          # is recovered.
+          sed -i '/^CONFIG_HWT101_SN65DSI83=/d;/^# CONFIG_HWT101_SN65DSI83 is not set/d' kernel/.config
+          echo '# CONFIG_HWT101_SN65DSI83 is not set' >> kernel/.config
 
       - name: Preserve stock external-module ABI
         working-directory: kernel
@@ -84,6 +91,7 @@ jobs:
           grep -q '^CONFIG_YAFFS_YAFFS2=y' .config
           grep -q '^# CONFIG_BCMDHD is not set' .config
           grep -q '^# CONFIG_BCMDHD_BCM is not set' .config
+          grep -q '^# CONFIG_HWT101_SN65DSI83 is not set' .config
           if grep -qx 'CONFIG_FSA880_I2C=y' .config && grep -qx 'CONFIG_SUPPORT_MICRO_USB_PORT=y' .config; then
             echo 'ERROR: mutually exclusive USB board options enabled'; exit 94
           fi
@@ -98,9 +106,9 @@ jobs:
           set -euo pipefail
           export ARCH=arm
           export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
-          make LOCALVERSION= -j2 zImage modules V=0 2>&1 | tee ../BUILD-V332.log
+          make LOCALVERSION= -j2 zImage modules V=0 2>&1 | tee ../BUILD-V335.log
 
-      - name: Verify final hardware and OEM filesystem parity
+      - name: Verify safe hardware and OEM filesystem parity
         shell: bash
         run: |
           set -e
@@ -111,7 +119,14 @@ jobs:
             label="$1"; pattern="$2"
             if grep -Eq "$pattern" "$MAP"; then echo "OK   $label" | tee -a "$OUT"; else echo "MISS $label" | tee -a "$OUT"; return 1; fi
           }
-          check_sym 'DISPLAY SN65DSI83' ' [tT] hwt101_sn65_probe$'
+          check_sym 'DISPLAY K3FB CORE' ' [tT] k3_fb_init$'
+          check_sym 'DISPLAY MIPI DSI CORE' ' [tT] mipi_dsi_probe$'
+          if grep -Eq ' [tT] hwt101_sn65_(probe|init|write_regs)$' "$MAP"; then
+            echo 'ERROR reconstructed SN65DSI83 still linked' | tee -a "$OUT"
+            exit 96
+          else
+            echo 'OK   reconstructed SN65DSI83 absent (SAFE boot)' | tee -a "$OUT"
+          fi
           check_sym 'TOUCH GOODIX' ' [tT] goodix_ts_probe$'
           check_sym 'CAMERA GC0339' ' [tT] gc0339_init$'
           check_sym 'CAMERA S5K5CAG' ' [tT] s5k5cag_init$'
@@ -125,15 +140,14 @@ jobs:
           check_sym 'YAFFS2 MOUNT' ' [tT] yaffs2_mount$'
           if grep -Eq ' [tT] (dhd_|wl_cfg80211_|dhd_module_init)' "$MAP"; then
             echo 'ERROR Broadcom DHD symbols present' | tee -a "$OUT"
-            grep -E ' [tT] (dhd_|wl_cfg80211_|dhd_module_init)' "$MAP" | head -20 | tee -a "$OUT"
             exit 97
           else
             echo 'OK   Broadcom DHD absent' | tee -a "$OUT"
           fi
           echo 'OK   FT5X0X intentionally not required (HWT101 uses Goodix)' | tee -a "$OUT"
           echo 'OK   TI wl18xx/wlcore/wlcore_sdio remain stock external /system modules' | tee -a "$OUT"
-          grep -E '^(CONFIG_(MODULES|MODULE_UNLOAD|MMC_SDIO_DEVICE|MISC_FILESYSTEMS|MTD|MTD_BLOCK|YAFFS.*|BT|SND|SND_SOC)=|# CONFIG_(BCMDHD|BCMDHD_BCM|MODVERSIONS) is not set)' kernel/.config | sort >> "$OUT"
-          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V332.txt
+          grep -E '^(CONFIG_(MODULES|MODULE_UNLOAD|MMC_SDIO_DEVICE|MISC_FILESYSTEMS|MTD|MTD_BLOCK|YAFFS.*|BT|SND|SND_SOC)=|# CONFIG_(BCMDHD|BCMDHD_BCM|MODVERSIONS|HWT101_SN65DSI83) is not set)' kernel/.config | sort >> "$OUT"
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V335.txt
 
       - name: Inventory built modules
         if: success()
@@ -141,11 +155,11 @@ jobs:
           find kernel -type f -name '*.ko' -print | sort | tee BUILT-MODULES.txt
           grep -Ei 'yaffs|nand|mtd|bnep|bluetooth|snd|audio|goodix|gc0339|s5k5cag|bq2419|galcore' BUILT-MODULES.txt > RELEVANT-BUILT-MODULES.txt || true
 
-      - name: Upload V3.32 FINAL DRIVERS candidate
+      - name: Upload V3.35 SAFE BOOT candidate
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-V3.32-FINAL-DRIVERS
+          name: HWT101-V3.35-SAFE-BOOT
           if-no-files-found: warn
           include-hidden-files: true
           path: |
@@ -153,12 +167,12 @@ jobs:
             kernel/System.map
             kernel/vmlinux
             kernel/.config
-            BUILD-V332.log
+            BUILD-V335.log
             KERNELRELEASE.txt
             FINAL-DRIVER-VERIFICATION.txt
             BUILT-MODULES.txt
             RELEVANT-BUILT-MODULES.txt
-            SHA256-zImage-V332.txt
+            SHA256-zImage-V335.txt
             DONOR-HARDWARE-INVENTORY.txt
             HWT101-FINAL-LINK-PATCH.txt
             HWT101-GOODIX-PORT.txt
