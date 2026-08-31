@@ -12,6 +12,8 @@ R = Path(sys.argv[2]).resolve()
 # Exact unresolved symbols from the current HWT101 link failure.
 FUNCTION_SYMBOLS = [
     "get_battery_id",
+    "ipps_update_power_capacity",
+    "get_boot_into_recovery_flag",
     "is_bq27510_battery_exist",
     "is_bq27510_battery_full",
     "bq27510_battery_temperature",

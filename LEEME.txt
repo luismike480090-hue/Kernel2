@@ -1,24 +1,17 @@
-HWT101 V3.12 - BQ27510 SAME-PATH PROVIDER FIX
+HWT101 V3.13 - BQ27510 TRANSITIVE FIX
 
-El exit 88 confirmó ocho símbolos y TODOS pertenecen a:
-  drivers/power/bq27510_battery.c
+Nuevos símbolos añadidos al importador de proveedores exactos:
+  ipps_update_power_capacity
+  get_boot_into_recovery_flag
 
-Ese archivo YA existe en S10 en la misma ruta. Por eso NO debemos copiar el
-archivo del donor encima del S10.
+No se crean stubs y no se desactiva -Werror.
+El script busca la implementación real en el mismo donor Huawei K3V2,
+la integra usando las protecciones V3.11/V3.12 y evita sobrescribir fuentes
+S10 existentes.
 
-V3.12 hace exactamente esto:
-- conserva drivers/power/bq27510_battery.c del S10;
-- fuerza bq27510_battery.o a entrar en vmlinux;
-- no reemplaza board-k3v2oem1.c;
-- no reemplaza headers S10;
-- conserva todos los fixes anteriores (SN65, BQ2419X, OTG ID, etc.).
-
-Esto resuelve la causa concreta del exit 88: el código proveedor estaba
-presente en S10 pero su objeto no estaba entrando por la selección CONFIG.
-
-Reemplaza solamente:
+Reemplaza:
   scripts/import_link_providers.py
   scripts/import_huawei_v3.sh
   oem_recovered/display/sn65dsi83_hwt101.c
 
-No cambies el YAML.
+No cambies YAML.
