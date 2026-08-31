@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.4
+name: HWT101 Hybrid Kernel V3.5
 
 on:
   workflow_dispatch:
@@ -29,20 +29,6 @@ jobs:
           bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY.txt
           python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered
           python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-PRE.txt
-
-      - name: V3.4 preflight
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s scripts/import_huawei_v3.sh
-          test -s scripts/import_link_providers.py
-          test -s scripts/apply_hwt101_v3.sh
-          test -s scripts/prepare_missing_hwt101_drivers.py
-          test -s oem_recovered/display/sn65dsi83_hwt101.c
-          test -s oem_recovered/camera/gc0339_init_blob.bin
-          test -s oem_recovered/camera/gc0339_isp_blob.bin
-          test -s oem_recovered/camera/gc0339_framesize_blob.bin
-          echo "V3.4 preflight: OK"
 
       - name: Toolchain GCC 4.6.3
         run: |
@@ -103,7 +89,7 @@ jobs:
               ;;
           esac
 
-      - name: Build V3.4 candidate
+      - name: Build V3.5 candidate
         working-directory: kernel
         shell: bash
         run: |
@@ -175,7 +161,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.4
+          name: HWT101-HYBRID-KERNEL-V3.5
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
