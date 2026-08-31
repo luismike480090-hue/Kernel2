@@ -45,18 +45,17 @@ if not re.search(r'(?m)^int\s+ipps_update_power_capacity\s*\(',t):
 
 # Exact Huawei recovery API + every simple global variable referenced by it.
 dst=K/'arch/arm/mach-k3v2/common.c'; src=R/'arch/arm/mach-k3v2/common.c'; t=rd(dst); s=rd(src)
-if not re.search(r'(?m)^unsigned\s+int\s+get_boot_into_recovery_flag\s*\(',t):
+if not re.search(r'(?m)^\s*unsigned\s+int\s+get_boot_into_recovery_flag\s*\(',t):
     fn=fn_extract(s,'get_boot_into_recovery_flag'); prefix=''
-    # OEM function currently references enter_recovery_flag. Keep aliases for older donor variants too.
     for ident in ('enter_recovery_flag','boot_into_recovery_flag','recovery_flag'):
-        if re.search(r'\b'+re.escape(ident)+r'\b',fn) and not re.search(r'(?m)^(?:static\s+)?(?:unsigned\s+int|int|u32)\s+'+re.escape(ident)+r'\b',t):
-            m=re.search(r'(?m)^(?:static\s+)?(?:unsigned\s+int|int|u32)\s+'+re.escape(ident)+r'\s*(?:=\s*[^;\n]+)?\s*;',s)
+        if re.search(r'\b'+re.escape(ident)+r'\b',fn) and not re.search(r'(?m)^\s*(?:static\s+)?(?:unsigned\s+int|int|u32)\s+'+re.escape(ident)+r'\b',t):
+            m=re.search(r'(?m)^\s*(?:static\s+)?(?:unsigned\s+int|int|u32)\s+'+re.escape(ident)+r'\s*(?:=\s*[^;\n]+)?\s*;',s)
             if not m: raise RuntimeError('backing variable not found for '+ident)
-            prefix+=m.group(0)+'\n'
+            prefix+=m.group(0).strip()+'\n'
     t+='\n\n/* HWT101 exact Huawei K3V2 recovery API */\n'+prefix+fn+'\n'; wr(dst,t)
 
 wake_src=R/'arch/arm/mach-k3v2/k3v2_wakeup_timer.c'; s=rd(wake_src)
-vm=re.search(r'(?m)^(?!\s*extern\b)(?:static\s+)?(?:unsigned\s+int|u32)\s+wakeup_timer_seconds\s*(?:=\s*[^;\n]+)?\s*;',s)
+vm=re.search(r'(?m)^\s*(?!extern\b)(?:static\s+)?(?:unsigned\s+int|u32)\s+wakeup_timer_seconds\s*(?:=\s*[^;\n]+)?\s*;',s)
 if not vm: raise RuntimeError('exact K3V2 wakeup_timer_seconds not found')
 
 compat=K/'arch/arm/mach-k3v2/hwt101_oem_compat.c'
@@ -73,11 +72,11 @@ static int hwt101_charger_type = CHARGER_REMOVED;
 int get_charger_name(void) { return hwt101_charger_type; }
 int hiusb_charger_registe_notifier(struct notifier_block *nb) { return atomic_notifier_chain_register(&hwt101_charger_type_notifier_head, nb); }
 int hiusb_charger_unregiste_notifier(struct notifier_block *nb) { return atomic_notifier_chain_unregister(&hwt101_charger_type_notifier_head, nb); }
-''' % vm.group(0))
+''' % vm.group(0).strip())
 print('PATCHED',compat.relative_to(K))
 mk=K/'arch/arm/mach-k3v2/Makefile'; t=rd(mk)
 if 'hwt101_oem_compat.o' not in t:
     t+='\nobj-y += hwt101_oem_compat.o  # HWT101 final OEM glue\n'; wr(mk,t)
 
-Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.23 final-link repair\nnotifier_list: exact donor bq_bci_battery.c\nrecovery API: exact donor function plus enter_recovery_flag backing variable\nwakeup_timer_seconds: K3V2 provider, no OMAP\nipps_update_power_capacity: exact donor implementation\nHIUSB APIs: FSA880-safe provider\n''')
+Path('HWT101-FINAL-LINK-PATCH.txt').write_text('''HWT101 V3.24 final-link repair\nnotifier_list: exact donor bq_bci_battery.c\nrecovery API: exact donor function plus enter_recovery_flag backing variable\nwakeup_timer_seconds: K3V2 provider, no OMAP\nipps_update_power_capacity: exact donor implementation\nHIUSB APIs: FSA880-safe provider\n''')
 print(Path('HWT101-FINAL-LINK-PATCH.txt').read_text())
