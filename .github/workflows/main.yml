@@ -1,4 +1,4 @@
-name: HWT101 Hybrid Kernel V3.21 FINAL-LINK
+name: HWT101 Hybrid Kernel V3.28 GOODIX
 
 on:
   workflow_dispatch:
@@ -59,7 +59,13 @@ jobs:
         run: |
           bash scripts/apply_hwt101_v3.sh kernel
 
-      - name: Apply HWT101 V3.21 final-link repair
+      - name: Port HWT101 Goodix active touchscreen
+        run: |
+          python3 scripts/port_goodix_hwt101.py kernel
+          cat HWT101-GOODIX-PORT.txt
+          grep -n 'hwt101_goodix' kernel/drivers/input/touchscreen/Makefile
+
+      - name: Apply HWT101 final-link repair
         run: |
           python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
           cat HWT101-FINAL-LINK-PATCH.txt
@@ -85,35 +91,27 @@ jobs:
           set -e
           export ARCH=arm
           export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
-
           make LOCALVERSION= oldnoconfig
-
-          # This old tree prints kconfig status text to stdout even with -s.
-          # Extract the actual release token instead of trusting the full stdout.
           KR_RAW="$(make -s LOCALVERSION= kernelrelease 2>&1 || true)"
           printf '%s\n' "$KR_RAW" > ../KERNELRELEASE-RAW.txt
-
           KR="$(printf '%s\n' "$KR_RAW" | grep -oE '3\.0\.8(-g[0-9a-f]+-dirty)?\+?' | tail -n 1 || true)"
           KR="$(printf '%s' "$KR" | tr -d '\r\n[:space:]')"
-
           printf '%s\n' "$KR" | tee ../KERNELRELEASE.txt
           printf 'kernelrelease bytes: '
           printf '%s' "$KR" | od -An -tx1
           printf '\n'
-
           case "$KR" in
             3.0.8-g883717a-dirty)
               echo "KERNELRELEASE OEM EXACTO: OK"
               ;;
             *)
               echo "ERROR: kernelrelease inesperado: [$KR]"
-              echo "----- salida cruda de make kernelrelease -----"
               cat ../KERNELRELEASE-RAW.txt
               exit 1
               ;;
           esac
 
-      - name: Build V3.5 candidate
+      - name: Build V3.28 candidate
         working-directory: kernel
         shell: bash
         run: |
@@ -149,8 +147,10 @@ jobs:
           python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-POST.txt
           python3 scripts/verify_v3.py kernel | tee VERIFY-V3.txt
           grep -E ' (sys_swapon|sys_swapoff|zram_init|xv_malloc|lzo1x_1_compress)$' kernel/System.map > MEMORY-SYMBOLS.txt || true
-          grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|ft5x0x_ts_probe|gc0339_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
+          grep -Ei ' (hwt101_sn65_probe|goodix_ts_probe|goodix_ts_work_func|ft5x0x_ts_probe|gc0339_init|s5k5cag_init|bq2419x_charger_probe)$' kernel/System.map > HARDWARE-SYMBOLS.txt || true
           sha256sum kernel/arch/arm/boot/zImage > SHA256-zImage.txt
+          echo '===== HARDWARE SYMBOLS ====='
+          cat HARDWARE-SYMBOLS.txt
 
       - name: ALWAYS show build errors and linker context
         if: always()
@@ -177,6 +177,9 @@ jobs:
             grep -nE "undefined reference|collect2:|\\.tmp_vmlinux|vmlinux" BUILD.log | tail -n 300
           fi
           echo
+          echo "========== GOODIX PORT =========="
+          cat HWT101-GOODIX-PORT.txt 2>/dev/null || true
+          echo
           echo "========== HIUSB PROVIDER REPORT =========="
           cat HIUSB-PROVIDER-REPORT.txt 2>/dev/null || true
           echo
@@ -189,11 +192,11 @@ jobs:
           echo "========== END DIAGNOSTICS =========="
           exit 0
 
-      - name: Upload V3 artifact
+      - name: Upload V3.28 artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.21
+          name: HWT101-HYBRID-KERNEL-V3.28-GOODIX
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
@@ -215,5 +218,6 @@ jobs:
             LINK-PROVIDER-IMPORT.txt
             HWT101-MISSING-DRIVER-PARITY.txt
             HWT101-FINAL-LINK-PATCH.txt
+            HWT101-GOODIX-PORT.txt
             AUTO-DIAG/
             oem_recovered/
