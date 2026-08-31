@@ -1,7 +1,9 @@
-name: HWT101 Hybrid Kernel V3.10
+name: HWT101 Hybrid Kernel V3.21 FINAL-LINK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
@@ -56,6 +58,11 @@ jobs:
       - name: Apply V3 HWT101 overlay and exact release
         run: |
           bash scripts/apply_hwt101_v3.sh kernel
+
+      - name: Apply HWT101 V3.21 final-link repair
+        run: |
+          python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
+          cat HWT101-FINAL-LINK-PATCH.txt
 
       - name: Enable exact link-provider CONFIG guards
         run: |
@@ -186,7 +193,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-HYBRID-KERNEL-V3.10
+          name: HWT101-HYBRID-KERNEL-V3.21
           if-no-files-found: warn
           path: |
             kernel/arch/arm/boot/zImage
@@ -207,5 +214,6 @@ jobs:
             FLASHABILITY.txt
             LINK-PROVIDER-IMPORT.txt
             HWT101-MISSING-DRIVER-PARITY.txt
+            HWT101-FINAL-LINK-PATCH.txt
             AUTO-DIAG/
             oem_recovered/
