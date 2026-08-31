@@ -102,6 +102,27 @@ def makefile_guard(src):
             out += re.findall(r'obj-\$\((CONFIG_[A-Za-z0-9_]+)\)',line)
     return out
 
+
+# HWT101 V3.17 board invariants.
+# board-k3v2oem1.c explicitly rejects this pair at compile time.
+# Preserve the S10/HWT101 base choice instead of enabling both while chasing
+# provider dependencies.
+MUTEX_PAIRS = [
+    ("CONFIG_FSA880_I2C", "CONFIG_SUPPORT_MICRO_USB_PORT"),
+]
+
+def config_value(name):
+    txt=CONFIG.read_text(errors="ignore")
+    m=re.search(r'^'+re.escape(name)+r'=(.*)$',txt,re.M)
+    return m.group(1).strip() if m else ("n" if re.search(r'^# '+re.escape(name)+r' is not set$',txt,re.M) else None)
+
+def set_n(name):
+    txt=CONFIG.read_text(errors="ignore")
+    txt=re.sub(r'^'+re.escape(name)+r'=.*$', '# '+name+' is not set', txt, flags=re.M)
+    if not re.search(r'^(?:# '+re.escape(name)+r' is not set|'+re.escape(name)+r'=)',txt,re.M):
+        txt += '\n# '+name+' is not set\n'
+    CONFIG.write_text(txt)
+
 def set_y(name):
     txt=CONFIG.read_text(errors="ignore")
     rx1=re.compile(r'^'+re.escape(name)+r'=.*$',re.M)
@@ -135,8 +156,24 @@ for sym in SYMS:
     needed.update(guards)
 
 for c in sorted(needed):
-    set_y(c)
-    print("V3.16 CONFIG ENABLED:",c)
+    blocked=False
+    for a,b in MUTEX_PAIRS:
+        other = b if c==a else (a if c==b else None)
+        if other and config_value(other) == "y":
+            print("V3.17 MUTEX PRESERVED: refusing to enable",c,"because",other,"is already y")
+            blocked=True
+            break
+    if not blocked:
+        set_y(c)
+        print("V3.17 CONFIG ENABLED:",c)
+
+# Final safety pass: if a prior stage somehow enabled both, preserve the base
+# FSA880 path and disable SUPPORT_MICRO_USB_PORT. This matches the S10 board
+# compile-time invariant and avoids altering the FSA880 hardware path.
+for a,b in MUTEX_PAIRS:
+    if config_value(a)=="y" and config_value(b)=="y":
+        set_n(b)
+        print("V3.17 MUTEX FIX:",a,"kept; disabled",b)
 
 Path("LINK-PROVIDER-CONFIGS.txt").write_text("\n".join(report)+"\n")
 print("\n".join(report))
