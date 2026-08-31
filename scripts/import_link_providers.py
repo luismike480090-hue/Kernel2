@@ -50,7 +50,12 @@ def find_function_provider(sym):
             t = p.read_text(errors="ignore")
         except Exception:
             continue
-        if pat.search(t):
+        m = pat.search(t)
+        if m:
+            # An unresolved external cannot be satisfied by a static definition.
+            line = m.group(0)
+            if re.search(r'(^|\s)static\s', line):
+                continue
             candidates.append(p)
     return candidates
 
@@ -66,9 +71,9 @@ def find_variable_provider(sym):
             continue
         for m in init_pat.finditer(t):
             line = m.group(0)
-            if "extern " in line:
+            if "extern " in line or re.search(r'(^|\s)static\s', line):
                 continue
-            # Skip obvious local declarations by preferring column-0 / static/global-looking lines.
+            # Only globally link-visible variables can satisfy vmlinux externs.
             candidates.append(p)
             break
     return candidates
@@ -132,7 +137,10 @@ def find_function_provider_in(files, sym):
             t = p.read_text(errors="ignore")
         except Exception:
             continue
-        if pat.search(t):
+        m = pat.search(t)
+        if m:
+            if re.search(r'(^|\s)static\s', m.group(0)):
+                continue
             out.append(p)
     return out
 
@@ -146,7 +154,8 @@ def find_variable_provider_in(files, sym):
         except Exception:
             continue
         for m in init_pat.finditer(t):
-            if "extern " not in m.group(0):
+            line = m.group(0)
+            if "extern " not in line and not re.search(r'(^|\s)static\s', line):
                 out.append(p)
                 break
     return out
