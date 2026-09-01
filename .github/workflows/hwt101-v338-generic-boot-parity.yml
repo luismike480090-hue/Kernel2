@@ -14,7 +14,7 @@ jobs:
       - name: Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl
+          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl python3
 
       - name: Clone generic Huawei K3V2 OEM1 source
         run: |
@@ -34,11 +34,37 @@ jobs:
           test -n "$TC"
           echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
 
-      - name: Patch old host compatibility
+      - name: Patch old host and YAFFS VFS compatibility
         working-directory: kernel
+        shell: bash
         run: |
+          set -euo pipefail
           sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
           sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+          YAFFS_VFS=fs/yaffs2/yaffs_vfs.c
+          if [ -f "$YAFFS_VFS" ]; then
+            sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' "$YAFFS_VFS"
+            if grep -Eq '\b(lock_kernel|unlock_kernel)\b' "$YAFFS_VFS"; then
+              echo 'ERROR: YAFFS uses obsolete Big Kernel Lock calls'; exit 97
+            fi
+            python3 - "$YAFFS_VFS" <<'PY'
+          from pathlib import Path
+          import re, sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          # Port either old Huawei YAFFS get_sb wrapper style to Linux 3.0 mount API.
+          s=re.sub(r'static int yaffs_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name,\s*void \*data, struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs_internal_read_super_mtd, mnt\);\s*\}',
+                   'static struct dentry *yaffs_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data,\\n\\t\\t\\t  yaffs_internal_read_super_mtd);\\n}', s, flags=re.S)
+          s=re.sub(r'static int yaffs2_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name, void \*data,\s*struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs2_internal_read_super_mtd, mnt\);\s*\}',
+                   'static struct dentry *yaffs2_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t  int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data,\\n\\t\\t\\t  yaffs2_internal_read_super_mtd);\\n}', s, flags=re.S)
+          s=s.replace('.get_sb = yaffs_read_super,', '.mount = yaffs_mount,')
+          s=s.replace('.get_sb = yaffs2_read_super,', '.mount = yaffs2_mount,')
+          p.write_text(s)
+          PY
+            if grep -Eq '\bget_sb_bdev\b|\.get_sb[[:space:]]*=' "$YAFFS_VFS"; then
+              echo 'ERROR: legacy YAFFS get_sb API remains'; exit 98
+            fi
+          fi
 
       - name: Configure HWT101 boot-critical parity
         working-directory: kernel
@@ -47,19 +73,13 @@ jobs:
           make hisi_k3v2oem1_defconfig
           set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
           set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
-
-          # Exact machine: do not compile the unrelated OEM2 board at all.
           set_y MACH_K3V2OEM1
           set_n MACH_K3V2OEM2
           set_n MACH_TC45MSU3
-
-          # Exact panel family visible in the working FIX10 board registration.
           set_y LCD_TOSHIBA_MDW70
           set_n LCD_CMI_OTM1280A
           set_n LCD_PANASONIC_VVX10F002A00
           set_n LCD_JDI_OTM1282B
-
-          # HWT101 /system is YAFFS2 over MTD NAND. Keep boot storage built-in.
           set_y MTD
           set_y MTD_BLOCK
           set_y MISC_FILESYSTEMS
@@ -67,12 +87,8 @@ jobs:
           set_y YAFFS_YAFFS1
           set_y YAFFS_YAFFS2
           set_y YAFFS_AUTO_YAFFS2
-
-          # Do not add experimental memory features while solving early boot.
           set_n ZRAM
           set_n ZSMALLOC
-
-          # Remove peripherals known not to be part of the T101 early boot path.
           set_n TOUCHSCREEN_RMI4
           set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
           set_n TOUCH_INPUT_SYNAPTICS_RMI4
@@ -84,13 +100,11 @@ jobs:
           set_n BALONG_FLASHLESS_POWER
           set_n XMM_POWER
           set_n XMM_RMNET
-
           sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
           echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
           echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
           rm -f .scmversion
           make LOCALVERSION= oldnoconfig
-
           grep -qx 'CONFIG_MACH_K3V2OEM1=y' .config
           grep -qx '# CONFIG_MACH_K3V2OEM2 is not set' .config
           echo '===== BOOT CRITICAL CONFIG ====='
@@ -107,6 +121,7 @@ jobs:
           test "$KR" = '3.0.8-g883717a-dirty'
 
       - name: Audit boot-critical linked symbols
+        if: success()
         run: |
           set -e
           MAP=kernel/System.map
@@ -115,6 +130,8 @@ jobs:
           grep -qE ' [tT] k3_fb_init$' "$MAP"
           grep -qE ' [tT] mipi_dsi_probe$' "$MAP"
           grep -qE ' [tT] hinand_probe$' "$MAP"
+          grep -qE ' [tT] init_yaffs_fs$' "$MAP"
+          grep -qE ' [tT] yaffs2_mount$' "$MAP"
           if grep -q 'k3v2_iomux_blocks_s10' kernel/arch/arm/mach-k3v2/Makefile; then exit 91; fi
           sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V338.txt
           wc -c kernel/arch/arm/boot/zImage | tee SIZE-zImage-V338.txt
@@ -122,11 +139,11 @@ jobs:
       - name: Show errors
         if: always()
         run: |
-          grep -nEi 'error:|fatal error:|undefined reference|multiple definition|No rule to make target|collect2:' BUILD-V338.log 2>/dev/null | tail -n 200 || true
-          tail -n 120 BUILD-V338.log 2>/dev/null || true
+          grep -nEi 'error:|fatal error:|undefined reference|multiple definition|No rule to make target|collect2:' BUILD-V338.log 2>/dev/null | tail -n 250 || true
+          tail -n 180 BUILD-V338.log 2>/dev/null || true
 
       - name: Upload V3.38 artifact
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: HWT101-V3.38-GENERIC-K3V2-BOOT-PARITY
