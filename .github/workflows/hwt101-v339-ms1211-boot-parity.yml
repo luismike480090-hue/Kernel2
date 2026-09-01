@@ -1,0 +1,164 @@
+name: HWT101 V3.39 MS1211 BOOT PARITY
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl python3
+
+      - name: Clone generic Huawei K3V2 OEM1 base
+        run: |
+          git clone https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          git -C kernel checkout 675c975cf79dd2b0272b452e5706e1ba60e1b428
+          if grep -q 'k3v2_iomux_blocks_s10' kernel/arch/arm/mach-k3v2/Makefile; then
+            echo 'ERROR: S10 IOMUX base detected'; exit 90
+          fi
+
+      - name: GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          test -n "$TC"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+
+      - name: Host and YAFFS Linux-3.0 compatibility
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+          YAFFS_VFS=fs/yaffs2/yaffs_vfs.c
+          if [ -f "$YAFFS_VFS" ]; then
+            sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' "$YAFFS_VFS"
+            if grep -Eq '\b(lock_kernel|unlock_kernel)\b' "$YAFFS_VFS"; then exit 97; fi
+            python3 - "$YAFFS_VFS" <<'PY'
+          from pathlib import Path
+          import re,sys
+          p=Path(sys.argv[1]); s=p.read_text()
+          s=re.sub(r'static int yaffs_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name,\s*void \*data, struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs_internal_read_super_mtd, mnt\);\s*\}', 'static struct dentry *yaffs_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data,\\n\\t\\t\\t  yaffs_internal_read_super_mtd);\\n}', s, flags=re.S)
+          s=re.sub(r'static int yaffs2_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name, void \*data,\s*struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs2_internal_read_super_mtd, mnt\);\s*\}', 'static struct dentry *yaffs2_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t  int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data,\\n\\t\\t\\t  yaffs2_internal_read_super_mtd);\\n}', s, flags=re.S)
+          s=s.replace('.get_sb = yaffs_read_super,', '.mount = yaffs_mount,')
+          s=s.replace('.get_sb = yaffs2_read_super,', '.mount = yaffs2_mount,')
+          p.write_text(s)
+          PY
+            if grep -Eq '\bget_sb_bdev\b|\.get_sb[[:space:]]*=' "$YAFFS_VFS"; then exit 98; fi
+          fi
+
+      - name: Configure exact OEM1 boot core
+        working-directory: kernel
+        run: |
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+          set_y MACH_K3V2OEM1
+          set_n MACH_K3V2OEM2
+          set_n MACH_TC45MSU3
+          set_y LCD_TOSHIBA_MDW70
+          set_n LCD_CMI_OTM1280A
+          set_n LCD_PANASONIC_VVX10F002A00
+          set_n LCD_JDI_OTM1282B
+          set_y MTD
+          set_y MTD_BLOCK
+          set_y MISC_FILESYSTEMS
+          set_y YAFFS_FS
+          set_y YAFFS_YAFFS1
+          set_y YAFFS_YAFFS2
+          set_y YAFFS_AUTO_YAFFS2
+          set_n ZRAM
+          set_n ZSMALLOC
+          set_n TOUCHSCREEN_RMI4
+          set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
+          set_n TOUCH_INPUT_SYNAPTICS_RMI4
+          set_n TOUCHSCREEN_MXT1386
+          set_n TOUCHSCREEN_MXT224E
+          set_n BATTERY_K3_BQ24161
+          set_n PSY_BQ24161
+          set_n BCMDHD
+          set_n BALONG_FLASHLESS_POWER
+          set_n XMM_POWER
+          set_n XMM_RMNET
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make LOCALVERSION= oldnoconfig
+          grep -qx 'CONFIG_MACH_K3V2OEM1=y' .config
+          grep -qx '# CONFIG_MACH_K3V2OEM2 is not set' .config
+
+      - name: Apply recovered HWT101 MS1211 board layer
+        run: |
+          python3 scripts/patch_hwt101_board_v339.py kernel | tee BOARD-V339.txt
+          grep -n 'hwt101_i2c_bus1_devs\|sn65dsi83\|k3v2oem1_public_dev' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c | head -40
+          grep -n 'sn65dsi83_hwt101' kernel/drivers/video/k3/Makefile
+
+      - name: Build V3.39
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V339.log
+          KR="$(cat include/config/kernel.release)"
+          echo "$KR" | tee ../KERNELRELEASE-V339.txt
+          test "$KR" = '3.0.8-g883717a-dirty'
+
+      - name: Deep linked-kernel audit
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          required=(k3v2oem1_init k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init hinand_probe init_yaffs_fs yaffs2_mount sn65dsi83_probe ti_reset ti_write_regs)
+          : > V339-REQUIRED-SYMBOLS.txt
+          for s in "${required[@]}"; do
+            grep -E " [tT] ${s}$" "$MAP" | tee -a V339-REQUIRED-SYMBOLS.txt
+          done
+          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")" -eq 1
+          for bad in dhd_bus_start btbcm_device; do
+            if grep -Eq " [tT] ${bad}$" "$MAP"; then echo "FORBIDDEN $bad"; exit 92; fi
+          done
+          if grep -q 'k3v2_iomux_blocks_s10' kernel/arch/arm/mach-k3v2/Makefile; then exit 93; fi
+          grep -q 'sn65dsi83' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          grep -q '0x2d' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V339.txt
+          wc -c kernel/arch/arm/boot/zImage | tee SIZE-zImage-V339.txt
+          echo 'AUDIT_V339=PASS' | tee AUDIT-V339.txt
+
+      - name: Diagnostics
+        if: always()
+        run: |
+          echo '===== ERRORS ====='
+          grep -nEi 'error:|fatal error:|undefined reference|multiple definition|No rule to make target|collect2:' BUILD-V339.log 2>/dev/null | tail -n 300 || true
+          echo '===== TAIL ====='
+          tail -n 200 BUILD-V339.log 2>/dev/null || true
+
+      - name: Upload V3.39
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.39-MS1211-BOOT-PARITY
+          include-hidden-files: true
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/.config
+            BUILD-V339.log
+            KERNELRELEASE-V339.txt
+            V339-REQUIRED-SYMBOLS.txt
+            SHA256-zImage-V339.txt
+            SIZE-zImage-V339.txt
+            AUDIT-V339.txt
+            BOARD-V339.txt
