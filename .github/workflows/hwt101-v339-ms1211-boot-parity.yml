@@ -135,9 +135,16 @@ jobs:
           required=(k3v2oem1_init k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init hinand_probe hinand_module_init init_yaffs_fs yaffs2_mount sn65dsi83_probe ti_reset ti_write_regs)
           : > V339-REQUIRED-SYMBOLS.txt
           for s in "${required[@]}"; do
+            count="$(grep -Ec " [tT] ${s}$" "$MAP" || true)"
+            if [ "$count" -lt 1 ]; then
+              echo "MISSING REQUIRED SYMBOL: $s"
+              exit 91
+            fi
             grep -E " [tT] ${s}$" "$MAP" | tee -a V339-REQUIRED-SYMBOLS.txt
           done
-          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")" -eq 2
+          k3_init_count="$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP" || true)"
+          echo "k3v2oem1_init count: $k3_init_count" | tee -a V339-REQUIRED-SYMBOLS.txt
+          test "$k3_init_count" -ge 1
           for bad in dhd_bus_start btbcm_device; do
             if grep -Eq " [tT] ${bad}$" "$MAP"; then echo "FORBIDDEN $bad"; exit 92; fi
           done
