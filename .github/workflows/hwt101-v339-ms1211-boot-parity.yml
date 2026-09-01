@@ -99,12 +99,21 @@ jobs:
           grep -qx '# CONFIG_MACH_K3V2OEM2 is not set' .config
 
       - name: Apply recovered HWT101 MS1211 board layer
+        shell: bash
         run: |
+          set -euo pipefail
           python3 scripts/patch_hwt101_board_v339.py kernel | tee BOARD-V339.txt
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make -C kernel LOCALVERSION= oldnoconfig
+          grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
+          grep -qx 'CONFIG_MTD_CMDLINE_PARTS=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_FS=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config
           grep -n 'hwt101_i2c_bus1_devs\|sn65dsi83\|k3v2oem1_public_dev' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c | head -40
           grep -n 'sn65dsi83_hwt101' kernel/drivers/video/k3/Makefile
+          grep -n 'hinand_hwt101' kernel/drivers/mtd/nand/Makefile
 
-      - name: Build V3.39
+      - name: Build V3.40
         working-directory: kernel
         shell: bash
         run: |
@@ -121,7 +130,7 @@ jobs:
         run: |
           set -euo pipefail
           MAP=kernel/System.map
-          required=(k3v2oem1_init k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init hinand_probe init_yaffs_fs yaffs2_mount sn65dsi83_probe ti_reset ti_write_regs)
+          required=(k3v2oem1_init k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init hinand_probe hinand_module_init init_yaffs_fs yaffs2_mount sn65dsi83_probe ti_reset ti_write_regs)
           : > V339-REQUIRED-SYMBOLS.txt
           for s in "${required[@]}"; do
             grep -E " [tT] ${s}$" "$MAP" | tee -a V339-REQUIRED-SYMBOLS.txt
@@ -133,9 +142,13 @@ jobs:
           if grep -q 'k3v2_iomux_blocks_s10' kernel/arch/arm/mach-k3v2/Makefile; then exit 93; fi
           grep -q 'sn65dsi83' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
           grep -q '0x2d' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
+          grep -qx 'CONFIG_MTD_CMDLINE_PARTS=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_FS=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config
           sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V339.txt
           wc -c kernel/arch/arm/boot/zImage | tee SIZE-zImage-V339.txt
-          echo 'AUDIT_V339=PASS' | tee AUDIT-V339.txt
+          echo 'AUDIT_V340=PASS' | tee AUDIT-V339.txt
 
       - name: Diagnostics
         if: always()
@@ -145,11 +158,11 @@ jobs:
           echo '===== TAIL ====='
           tail -n 200 BUILD-V339.log 2>/dev/null || true
 
-      - name: Upload V3.39
+      - name: Upload V3.40
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-V3.39-MS1211-BOOT-PARITY
+          name: HWT101-V3.40-MS1211-BOOT-PARITY
           include-hidden-files: true
           path: |
             kernel/arch/arm/boot/zImage
