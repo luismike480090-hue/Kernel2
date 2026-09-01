@@ -48,13 +48,18 @@ jobs:
           set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
           set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
 
-          # Exact panel family visible in the working FIX10 kallsyms/platform device.
+          # Exact machine: do not compile the unrelated OEM2 board at all.
+          set_y MACH_K3V2OEM1
+          set_n MACH_K3V2OEM2
+          set_n MACH_TC45MSU3
+
+          # Exact panel family visible in the working FIX10 board registration.
           set_y LCD_TOSHIBA_MDW70
           set_n LCD_CMI_OTM1280A
           set_n LCD_PANASONIC_VVX10F002A00
           set_n LCD_JDI_OTM1282B
 
-          # HWT101 /system is YAFFS2 over MTD NAND. Keep this built-in.
+          # HWT101 /system is YAFFS2 over MTD NAND. Keep boot storage built-in.
           set_y MTD
           set_y MTD_BLOCK
           set_y MISC_FILESYSTEMS
@@ -67,7 +72,7 @@ jobs:
           set_n ZRAM
           set_n ZSMALLOC
 
-          # Remove S10/public-tree peripherals known not to describe the T101 boot path.
+          # Remove peripherals known not to be part of the T101 early boot path.
           set_n TOUCHSCREEN_RMI4
           set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
           set_n TOUCH_INPUT_SYNAPTICS_RMI4
@@ -86,8 +91,10 @@ jobs:
           rm -f .scmversion
           make LOCALVERSION= oldnoconfig
 
+          grep -qx 'CONFIG_MACH_K3V2OEM1=y' .config
+          grep -qx '# CONFIG_MACH_K3V2OEM2 is not set' .config
           echo '===== BOOT CRITICAL CONFIG ====='
-          grep -E 'CONFIG_MACH_K3V2OEM1|CONFIG_LCD_TOSHIBA_MDW70|CONFIG_YAFFS|CONFIG_MTD_BLOCK|CONFIG_LOCALVERSION|CONFIG_ZRAM|CONFIG_TOUCHSCREEN_(RMI4|MXT)|CONFIG_BATTERY_K3_BQ24161' .config || true
+          grep -E 'CONFIG_MACH_K3V2OEM|CONFIG_LCD_TOSHIBA_MDW70|CONFIG_YAFFS|CONFIG_MTD_BLOCK|CONFIG_LOCALVERSION|CONFIG_ZRAM|CONFIG_BATTERY_K3_BQ24161' .config || true
 
       - name: Build V3.38
         working-directory: kernel
@@ -104,7 +111,7 @@ jobs:
           set -e
           MAP=kernel/System.map
           grep -E ' [tT] (k3v2oem1_init|k3_fb_init|mipi_dsi_probe|mipi_toshiba_panel_init|hinand_probe|init_yaffs_fs|yaffs2_mount|hisik3_wdt_probe)$' "$MAP" | tee V338-BOOT-SYMBOLS.txt
-          grep -qE ' [tT] k3v2oem1_init$' "$MAP"
+          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")" -eq 1
           grep -qE ' [tT] k3_fb_init$' "$MAP"
           grep -qE ' [tT] mipi_dsi_probe$' "$MAP"
           grep -qE ' [tT] hinand_probe$' "$MAP"
