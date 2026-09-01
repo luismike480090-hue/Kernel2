@@ -1,4 +1,4 @@
-name: HWT101 V3.39 MS1211 BOOT PARITY
+name: HWT101 V3.40 MS1211 BOOT PARITY
 
 on:
   workflow_dispatch:
@@ -103,6 +103,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/patch_hwt101_board_v339.py kernel | tee BOARD-V339.txt
+          python3 -c "p='kernel/drivers/mtd/nand/hinand_hwt101.c'; s=open(p).read(); old='reinit_completion(&h->done);'; new='INIT_COMPLETION(h->done);'; assert old in s; open(p,'w').write(s.replace(old,new))"
+          grep -q 'INIT_COMPLETION(h->done)' kernel/drivers/mtd/nand/hinand_hwt101.c
           export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
           make -C kernel LOCALVERSION= oldnoconfig
           grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
@@ -135,7 +137,7 @@ jobs:
           for s in "${required[@]}"; do
             grep -E " [tT] ${s}$" "$MAP" | tee -a V339-REQUIRED-SYMBOLS.txt
           done
-          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")" -eq 1
+          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")" -eq 2
           for bad in dhd_bus_start btbcm_device; do
             if grep -Eq " [tT] ${bad}$" "$MAP"; then echo "FORBIDDEN $bad"; exit 92; fi
           done
