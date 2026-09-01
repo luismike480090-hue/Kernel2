@@ -1,0 +1,65 @@
+name: HWT101 V3.37 PRISTINE BASELINE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils
+      - name: Clone pristine K3V2 base
+        run: |
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+      - name: GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+      - name: Configure pristine base
+        working-directory: kernel
+        run: |
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make LOCALVERSION= oldnoconfig
+      - name: Build untouched baseline
+        working-directory: kernel
+        run: |
+          set -o pipefail
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V337.log
+          make -s LOCALVERSION= kernelrelease | tee ../KERNELRELEASE-V337.txt
+      - name: Prove isolation
+        run: |
+          set -e
+          grep -E ' [tT] (k3_fb_init|mipi_dsi_probe|s5k5cag_init)$' kernel/System.map | tee BASELINE-SYMBOLS.txt
+          if grep -Eq ' [tT] (hwt101_sn65_probe|sn65dsi83_probe|goodix_ts_probe|gc0339_init|bq2419x_charger_probe|btwilink_init)$' kernel/System.map; then exit 97; fi
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V337.txt
+      - name: Upload baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.37-PRISTINE-BASELINE
+          include-hidden-files: true
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/.config
+            BUILD-V337.log
+            KERNELRELEASE-V337.txt
+            BASELINE-SYMBOLS.txt
+            SHA256-zImage-V337.txt
