@@ -1,0 +1,135 @@
+name: HWT101 V3.38 GENERIC K3V2 BOOT PARITY
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils libspreadsheet-parseexcel-perl
+
+      - name: Clone generic Huawei K3V2 OEM1 source
+        run: |
+          git clone https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          git -C kernel checkout 675c975cf79dd2b0272b452e5706e1ba60e1b428
+          grep -E '^(VERSION|PATCHLEVEL|SUBLEVEL)' kernel/Makefile
+          grep -n 'iomux2.xls\|ipps_para.xls' kernel/arch/arm/mach-k3v2/Makefile
+          if grep -q 'k3v2_iomux_blocks_s10' kernel/arch/arm/mach-k3v2/Makefile; then
+            echo 'ERROR: S10-specific IOMUX leaked into V3.38'; exit 90
+          fi
+
+      - name: Toolchain GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          test -n "$TC"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+
+      - name: Patch old host compatibility
+        working-directory: kernel
+        run: |
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure HWT101 boot-critical parity
+        working-directory: kernel
+        run: |
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+
+          # Exact panel family visible in the working FIX10 kallsyms/platform device.
+          set_y LCD_TOSHIBA_MDW70
+          set_n LCD_CMI_OTM1280A
+          set_n LCD_PANASONIC_VVX10F002A00
+          set_n LCD_JDI_OTM1282B
+
+          # HWT101 /system is YAFFS2 over MTD NAND. Keep this built-in.
+          set_y MTD
+          set_y MTD_BLOCK
+          set_y MISC_FILESYSTEMS
+          set_y YAFFS_FS
+          set_y YAFFS_YAFFS1
+          set_y YAFFS_YAFFS2
+          set_y YAFFS_AUTO_YAFFS2
+
+          # Do not add experimental memory features while solving early boot.
+          set_n ZRAM
+          set_n ZSMALLOC
+
+          # Remove S10/public-tree peripherals known not to describe the T101 boot path.
+          set_n TOUCHSCREEN_RMI4
+          set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
+          set_n TOUCH_INPUT_SYNAPTICS_RMI4
+          set_n TOUCHSCREEN_MXT1386
+          set_n TOUCHSCREEN_MXT224E
+          set_n BATTERY_K3_BQ24161
+          set_n PSY_BQ24161
+          set_n BCMDHD
+          set_n BALONG_FLASHLESS_POWER
+          set_n XMM_POWER
+          set_n XMM_RMNET
+
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make LOCALVERSION= oldnoconfig
+
+          echo '===== BOOT CRITICAL CONFIG ====='
+          grep -E 'CONFIG_MACH_K3V2OEM1|CONFIG_LCD_TOSHIBA_MDW70|CONFIG_YAFFS|CONFIG_MTD_BLOCK|CONFIG_LOCALVERSION|CONFIG_ZRAM|CONFIG_TOUCHSCREEN_(RMI4|MXT)|CONFIG_BATTERY_K3_BQ24161' .config || true
+
+      - name: Build V3.38
+        working-directory: kernel
+        run: |
+          set -euo pipefail
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V338.log
+          KR="$(cat include/config/kernel.release)"
+          printf '%s\n' "$KR" | tee ../KERNELRELEASE-V338.txt
+          test "$KR" = '3.0.8-g883717a-dirty'
+
+      - name: Audit boot-critical linked symbols
+        run: |
+          set -e
+          MAP=kernel/System.map
+          grep -E ' [tT] (k3v2oem1_init|k3_fb_init|mipi_dsi_probe|mipi_toshiba_panel_init|hinand_probe|init_yaffs_fs|yaffs2_mount|hisik3_wdt_probe)$' "$MAP" | tee V338-BOOT-SYMBOLS.txt
+          grep -qE ' [tT] k3v2oem1_init$' "$MAP"
+          grep -qE ' [tT] k3_fb_init$' "$MAP"
+          grep -qE ' [tT] mipi_dsi_probe$' "$MAP"
+          grep -qE ' [tT] hinand_probe$' "$MAP"
+          if grep -q 'k3v2_iomux_blocks_s10' kernel/arch/arm/mach-k3v2/Makefile; then exit 91; fi
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V338.txt
+          wc -c kernel/arch/arm/boot/zImage | tee SIZE-zImage-V338.txt
+
+      - name: Show errors
+        if: always()
+        run: |
+          grep -nEi 'error:|fatal error:|undefined reference|multiple definition|No rule to make target|collect2:' BUILD-V338.log 2>/dev/null | tail -n 200 || true
+          tail -n 120 BUILD-V338.log 2>/dev/null || true
+
+      - name: Upload V3.38 artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.38-GENERIC-K3V2-BOOT-PARITY
+          include-hidden-files: true
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/.config
+            BUILD-V338.log
+            KERNELRELEASE-V338.txt
+            V338-BOOT-SYMBOLS.txt
+            SHA256-zImage-V338.txt
+            SIZE-zImage-V338.txt
