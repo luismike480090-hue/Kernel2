@@ -95,6 +95,13 @@ if line not in ms:
     ms += '\n# HWT101 MS1211 display bridge recovered from FIX10\n'+line
 mk.write_text(ms)
 
+# Install neutral providers for Huawei globals referenced by common code when
+# secondary battery/touch drivers are intentionally absent from first boot.
+helper=Path('scripts/add_hwt101_boot_abi.py')
+if not helper.exists():
+    raise SystemExit('missing scripts/add_hwt101_boot_abi.py')
+exec(compile(helper.read_text(), str(helper), 'exec'), {'__name__':'__main__', '__file__':str(helper)})
+
 # Hard assertions.
 patched=board.read_text()
 block=patched[patched.index('static struct platform_device *k3v2oem1_public_dev'):patched.index('static void __init k3v2oem1_init')]
@@ -106,4 +113,4 @@ for good in ('k3_lcd_device','usb_switch_device','hisik3_watchdog_device','sn65d
         raise SystemExit('required HWT101 board item missing: '+good)
 if 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' not in reg.read_text():
     raise SystemExit('OEM SN65 LDO17 supply missing')
-print('HWT101 V3.39 board isolation + OEM LDO17 SN65 supply: OK')
+print('HWT101 V3.39 board isolation + OEM LDO17 SN65 supply + neutral ABI: OK')
