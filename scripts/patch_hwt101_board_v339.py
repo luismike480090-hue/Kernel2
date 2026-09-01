@@ -8,6 +8,19 @@ K=Path(sys.argv[1])
 board=K/'arch/arm/mach-k3v2/board-k3v2oem1.c'
 s=board.read_text()
 
+# OEM FIX10 regulator table: LDO17 has two consumers in this exact role:
+#   k3_dev_lcd -> lcdanalog-vcc
+#   sn65dsi83  -> lcd-vcc
+reg=K/'arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h'
+rs=reg.read_text()
+needle='static struct regulator_consumer_supply ldo17_consumers[] = {\n\tREGULATOR_SUPPLY("lcdanalog-vcc", "k3_dev_lcd"),\n};'
+replacement_reg='static struct regulator_consumer_supply ldo17_consumers[] = {\n\tREGULATOR_SUPPLY("lcdanalog-vcc", "k3_dev_lcd"),\n\tREGULATOR_SUPPLY("lcd-vcc", "sn65dsi83"),\n};'
+if needle not in rs and 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' not in rs:
+    raise SystemExit('unexpected LDO17 layout; refusing blind regulator patch')
+if needle in rs:
+    rs=rs.replace(needle,replacement_reg)
+reg.write_text(rs)
+
 # Replace only the late board-registration block. Common SoC/clock/PMIC data is kept.
 start=s.index('/* please add platform device in the struct.*/')
 end=s.index('static void __init k3v2oem1_init(void)', start)
@@ -63,11 +76,11 @@ static void k3v2_i2c_devices_init(void)
 '''
 s=s[:start]+replacement+s[end:]
 
-# OEM init does not call Synaptics virtual-key setup. It does create debugfs when enabled.
+# OEM init does not call Synaptics virtual-key setup.
 s=s.replace('\n\tsynaptics_virtual_keys_init();\n','\n')
 board.write_text(s)
 
-# Install the reconstructed OEM-behaviour SN65 driver into the K3 display build.
+# Install reconstructed OEM-behaviour SN65 driver into K3 display build.
 src=Path('oem_recovered/display/sn65dsi83_hwt101.c')
 tab=Path('oem_recovered/display/sn65dsi83_oem_table.h')
 if not src.exists() or not tab.exists():
@@ -82,7 +95,7 @@ if line not in ms:
     ms += '\n# HWT101 MS1211 display bridge recovered from FIX10\n'+line
 mk.write_text(ms)
 
-# Hard assertions: reject accidental reintroduction of S10-specific early devices.
+# Hard assertions.
 patched=board.read_text()
 block=patched[patched.index('static struct platform_device *k3v2oem1_public_dev'):patched.index('static void __init k3v2oem1_init')]
 for bad in ('btbcm_device','bcm_bluesleep_device','modem_switch_device','hisik3_battery_monitor'):
@@ -91,4 +104,6 @@ for bad in ('btbcm_device','bcm_bluesleep_device','modem_switch_device','hisik3_
 for good in ('k3_lcd_device','usb_switch_device','hisik3_watchdog_device','sn65dsi83','0x2d'):
     if good not in block:
         raise SystemExit('required HWT101 board item missing: '+good)
-print('HWT101 V3.39 board isolation patch: OK')
+if 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' not in reg.read_text():
+    raise SystemExit('OEM SN65 LDO17 supply missing')
+print('HWT101 V3.39 board isolation + OEM LDO17 SN65 supply: OK')
