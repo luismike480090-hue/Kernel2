@@ -21,7 +21,6 @@ if needle in rs:
     rs=rs.replace(needle,replacement_reg)
 reg.write_text(rs)
 
-# Replace only the late board-registration block. Common SoC/clock/PMIC data is kept.
 start=s.index('/* please add platform device in the struct.*/')
 end=s.index('static void __init k3v2oem1_init(void)', start)
 replacement=r'''/* HWT101 / MS1211 early-boot board registration recovered from FIX10.
@@ -65,22 +64,17 @@ static struct platform_device *k3v2oem1_public_dev[] __initdata = {
 
 static void k3v2_i2c_devices_init(void)
 {
-    /* OEM FIX10: bus0 has left TPA2028. */
     i2c_register_board_info(0, hisik3_i2c_bus0_devs,
                             ARRAY_SIZE(hisik3_i2c_bus0_devs));
-    /* Boot-critical HWT101 bridge. Do not register S10 charger/BT/touch data. */
     i2c_register_board_info(1, hwt101_i2c_bus1_devs,
                             ARRAY_SIZE(hwt101_i2c_bus1_devs));
 }
 
 '''
 s=s[:start]+replacement+s[end:]
-
-# OEM init does not call Synaptics virtual-key setup.
 s=s.replace('\n\tsynaptics_virtual_keys_init();\n','\n')
 board.write_text(s)
 
-# Install reconstructed OEM-behaviour SN65 driver into K3 display build.
 src=Path('oem_recovered/display/sn65dsi83_hwt101.c')
 tab=Path('oem_recovered/display/sn65dsi83_oem_table.h')
 if not src.exists() or not tab.exists():
@@ -95,14 +89,30 @@ if line not in ms:
     ms += '\n# HWT101 MS1211 display bridge recovered from FIX10\n'+line
 mk.write_text(ms)
 
-# Install neutral providers for Huawei globals referenced by common code when
-# secondary battery/touch drivers are intentionally absent from first boot.
 helper=Path('scripts/add_hwt101_boot_abi.py')
 if not helper.exists():
     raise SystemExit('missing scripts/add_hwt101_boot_abi.py')
 exec(compile(helper.read_text(), str(helper), 'exec'), {'__name__':'__main__', '__file__':str(helper)})
 
-# Hard assertions.
+# V3.40: install the HWT101-specific HiSilicon NAND reconstruction.
+hinand=Path('scripts/add_hwt101_hinand_v340.py')
+if not hinand.exists():
+    raise SystemExit('missing scripts/add_hwt101_hinand_v340.py')
+exec(compile(hinand.read_text(), str(hinand), 'exec'), {'__name__':'__main__', '__file__':str(hinand)})
+
+# NAND core + cmdline partitions are mandatory: the MS1211 system/cache/cust/data
+# volumes are YAFFS2 on hisi_nand MTD, not eMMC.
+cfg=K/'.config'
+cs=cfg.read_text()
+def set_y(name):
+    global cs
+    cs=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n','',cs,flags=re.M)
+    cs=re.sub(r'^# CONFIG_'+re.escape(name)+r' is not set\n','',cs,flags=re.M)
+    cs += 'CONFIG_'+name+'=y\n'
+for opt in ('MTD','MTD_BLOCK','MTD_PARTITIONS','MTD_CMDLINE_PARTS','MTD_NAND','MTD_NAND_IDS','YAFFS_FS','YAFFS_YAFFS2'):
+    set_y(opt)
+cfg.write_text(cs)
+
 patched=board.read_text()
 block=patched[patched.index('static struct platform_device *k3v2oem1_public_dev'):patched.index('static void __init k3v2oem1_init')]
 for bad in ('btbcm_device','bcm_bluesleep_device','modem_switch_device','hisik3_battery_monitor'):
@@ -113,4 +123,6 @@ for good in ('k3_lcd_device','usb_switch_device','hisik3_watchdog_device','sn65d
         raise SystemExit('required HWT101 board item missing: '+good)
 if 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' not in reg.read_text():
     raise SystemExit('OEM SN65 LDO17 supply missing')
-print('HWT101 V3.39 board isolation + OEM LDO17 SN65 supply + neutral ABI: OK')
+if not (K/'drivers/mtd/nand/hinand_hwt101.c').exists():
+    raise SystemExit('HWT101 hinand source missing after V3.40 patch')
+print('HWT101 V3.40 board + SN65 + NAND reconstruction: OK')
