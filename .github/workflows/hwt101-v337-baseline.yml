@@ -1,0 +1,102 @@
+name: HWT101 V3.37 BASELINE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ v3.37-baseline ]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils
+
+      - name: Clone exact K3V2 base only
+        run: |
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+
+      - name: Toolchain GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          test -n "$TC"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+
+      - name: Patch old Perl
+        working-directory: kernel
+        run: |
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure pristine base
+        working-directory: kernel
+        run: |
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make hisi_k3v2oem1_defconfig
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+
+      - name: Enable only OEM YAFFS prerequisites
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -e
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+          for x in MISC_FILESYSTEMS MTD MTD_BLOCK YAFFS_FS YAFFS_YAFFS1 YAFFS_YAFFS2 YAFFS_AUTO_YAFFS2 YAFFS_XATTR; do set_y "$x"; done
+          for x in YAFFS_9BYTE_TAGS YAFFS_DOES_ECC YAFFS_DISABLE_TAGS_ECC YAFFS_ALWAYS_CHECK_CHUNK_ERASED YAFFS_EMPTY_LOST_AND_FOUND YAFFS_DISABLE_BLOCK_REFRESHING YAFFS_DISABLE_BACKGROUND; do set_n "$x"; done
+          VFS=fs/yaffs2/yaffs_vfs.c
+          sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' "$VFS"
+          python3 - "$VFS" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1]); s=p.read_text()
+s=s.replace('static int yaffs_read_super(struct file_system_type *fs,\n\t\t\t    int flags, const char *dev_name,\n\t\t\t    void *data, struct vfsmount *mnt)\n{\n\n\treturn get_sb_bdev(fs, flags, dev_name, data,\n\t\t\t   yaffs_internal_read_super_mtd, mnt);\n}\n','static struct dentry *yaffs_mount(struct file_system_type *fs,\n\t\t\t\t int flags, const char *dev_name, void *data)\n{\n\treturn mount_bdev(fs, flags, dev_name, data, yaffs_internal_read_super_mtd);\n}\n')
+s=s.replace('static int yaffs2_read_super(struct file_system_type *fs,\n\t\t\t     int flags, const char *dev_name, void *data,\n\t\t\t     struct vfsmount *mnt)\n{\n\treturn get_sb_bdev(fs, flags, dev_name, data,\n\t\t\t   yaffs2_internal_read_super_mtd, mnt);\n}\n','static struct dentry *yaffs2_mount(struct file_system_type *fs,\n\t\t\t\t  int flags, const char *dev_name, void *data)\n{\n\treturn mount_bdev(fs, flags, dev_name, data, yaffs2_internal_read_super_mtd);\n}\n')
+s=s.replace('\t.get_sb = yaffs_read_super,','\t.mount = yaffs_mount,').replace('\t.get_sb = yaffs2_read_super,','\t.mount = yaffs2_mount,')
+p.write_text(s)
+PY
+
+      - name: Resolve config and build pristine baseline
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= oldnoconfig
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V337.log
+          make -s LOCALVERSION= kernelrelease | tee ../KERNELRELEASE-V337.txt
+
+      - name: Verify baseline isolation
+        run: |
+          set -e
+          grep -q '^CONFIG_YAFFS_FS=y' kernel/.config
+          grep -q '^CONFIG_YAFFS_YAFFS2=y' kernel/.config
+          ! grep -Eq ' [tT] (hwt101_sn65_probe|sn65dsi83_probe|goodix_ts_probe|gc0339_init|bq2419x_charger_probe|btwilink_init)$' kernel/System.map
+          grep -E ' [tT] (k3_fb_init|mipi_dsi_probe|s5k5cag_init|init_yaffs_fs|yaffs2_mount)$' kernel/System.map | tee BASELINE-SYMBOLS.txt
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V337.txt
+
+      - name: Upload V3.37 baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.37-PRISTINE-BASELINE
+          include-hidden-files: true
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/.config
+            BUILD-V337.log
+            KERNELRELEASE-V337.txt
+            BASELINE-SYMBOLS.txt
+            SHA256-zImage-V337.txt
