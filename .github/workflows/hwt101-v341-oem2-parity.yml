@@ -50,7 +50,7 @@ jobs:
           p.write_text(s)
           PY
 
-      - name: Configure OEM2 HWT101 core
+      - name: Configure OEM dual-board HWT101 core
         working-directory: kernel
         shell: bash
         run: |
@@ -59,9 +59,9 @@ jobs:
           make hisi_k3v2oem1_defconfig
           set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
           set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
-          set_n MACH_K3V2OEM1
+          # Hi362x selects OEM1; Huawei defconfig also enables OEM2. Keep both exactly as the OEM lineage.
+          set_y MACH_K3V2OEM1
           set_y MACH_K3V2OEM2
-          set_n MACH_TC45MSU3
           set_y LCD_TOSHIBA_MDW70
           set_n LCD_TOSHIBA_MDY90
           set_n LCD_CMI_OTM1280A
@@ -85,7 +85,7 @@ jobs:
           echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
           rm -f .scmversion
           make LOCALVERSION= oldnoconfig
-          grep -qx '# CONFIG_MACH_K3V2OEM1 is not set' .config
+          grep -qx 'CONFIG_MACH_K3V2OEM1=y' .config
           grep -qx 'CONFIG_MACH_K3V2OEM2=y' .config
 
       - name: Apply HWT101 OEM2 hardware layer
@@ -96,6 +96,7 @@ jobs:
           python3 -c "p='kernel/drivers/mtd/nand/hinand_hwt101.c'; s=open(p).read(); old='reinit_completion(&h->done);'; new='INIT_COMPLETION(h->done);'; assert old in s; open(p,'w').write(s.replace(old,new))"
           export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
           make -C kernel LOCALVERSION= oldnoconfig
+          grep -qx 'CONFIG_MACH_K3V2OEM1=y' kernel/.config
           grep -qx 'CONFIG_MACH_K3V2OEM2=y' kernel/.config
           grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
           grep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config
@@ -118,12 +119,16 @@ jobs:
           set -euo pipefail
           MAP=kernel/System.map
           : > AUDIT-V341.txt
-          grep -E ' [rRdD] __mach_desc_K3V2OEM2$' "$MAP" | tee -a AUDIT-V341.txt
-          if grep -Eq ' [rRdD] __mach_desc_K3V2OEM1$' "$MAP"; then echo 'WRONG MACHINE DESC OEM1' | tee -a AUDIT-V341.txt; exit 91; fi
-          for s in k3v2oem1_init k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init sn65dsi83_probe hinand_probe hinand_module_init init_yaffs_fs yaffs2_mount; do
+          grep -E ' [rRdDtT] __mach_desc_K3V2OEM2$' "$MAP" | tee -a AUDIT-V341.txt
+          for s in k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init sn65dsi83_probe hinand_probe hinand_module_init init_yaffs_fs yaffs2_mount; do
             grep -E " [tT] ${s}$" "$MAP" | tee -a AUDIT-V341.txt
           done
+          # Running Huawei kernel exposes two same-named board init routines.
+          INIT_COUNT="$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")"
+          echo "K3V2OEM1_INIT_COUNT=$INIT_COUNT" | tee -a AUDIT-V341.txt
+          test "$INIT_COUNT" -eq 2
           test "$(grep -Ec ' [tT] mipi_toshiba_panel_init$' "$MAP")" -eq 1
+          grep -qx 'CONFIG_MACH_K3V2OEM1=y' kernel/.config
           grep -qx 'CONFIG_MACH_K3V2OEM2=y' kernel/.config
           grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
           grep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config
