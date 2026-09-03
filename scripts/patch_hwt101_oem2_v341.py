@@ -84,9 +84,6 @@ if common_def not in es:
         raise SystemExit('sbl_low_power_mode declaration not found in common EDC code')
     es = es.replace(extern_decl, common_def, 1)
 edc.write_text(es)
-if extern_decl in edc.read_text() and edc.read_text().count(extern_decl) > 0:
-    # A second occurrence is harmless as an extern, but the common definition must be unique.
-    pass
 if edc.read_text().count(common_def) != 1:
     raise SystemExit('expected exactly one common sbl_low_power_mode definition')
 
@@ -95,6 +92,17 @@ hinand = Path('scripts/add_hwt101_hinand_v340.py')
 if not hinand.exists():
     raise SystemExit('missing NAND helper')
 exec(compile(hinand.read_text(), str(hinand), 'exec'), {'__name__':'__main__','__file__':str(hinand)})
+
+# Restore HWT101 TI Wilink radio parity and remove generic U9508 Broadcom BT/Wi-Fi board refs.
+radio = Path('scripts/patch_hwt101_ti_radio_v341.py')
+if not radio.exists():
+    raise SystemExit('missing TI radio parity helper')
+_saved_argv = sys.argv[:]
+try:
+    sys.argv = [str(radio), str(K)]
+    exec(compile(radio.read_text(), str(radio), 'exec'), {'__name__':'__main__','__file__':str(radio)})
+finally:
+    sys.argv = _saved_argv
 
 # Ensure storage stack used by the live device.
 cfg = K/'.config'
@@ -122,4 +130,8 @@ if 'panel/mipi_toshiba_MDY90.o' in mk.read_text():
     raise SystemExit('MDY90 unexpectedly returned to k3fb objects')
 if edc.read_text().count(common_def) != 1:
     raise SystemExit('common sbl_low_power_mode definition lost')
-print('HWT101 V3.41 OEM2 + SN65 + NAND + common SBL board patch: OK')
+for bp in (K/'arch/arm/mach-k3v2/board-k3v2oem1.c', K/'arch/arm/mach-k3v2/board-k3v2oem2.c'):
+    bs = bp.read_text()
+    if re.search(r'^\s*&(?:btbcm_device|bcm_bluesleep_device),', bs, flags=re.M):
+        raise SystemExit('Broadcom BT board reference survived in ' + bp.name)
+print('HWT101 V3.41 OEM2 + SN65 + NAND + TI radio parity + common SBL board patch: OK')
