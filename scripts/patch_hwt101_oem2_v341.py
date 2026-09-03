@@ -72,6 +72,24 @@ if 'panel/mipi_toshiba_MDY90.o' in ms:
     raise SystemExit('failed to remove MDY90 from k3fb objects')
 mk.write_text(ms)
 
+# The generic tree incorrectly owns this global in MDY90 although the common EDC/SBL code
+# consumes it. Once MDY90 is removed (matching OEM HWT101's single Toshiba initcall), the
+# kernel otherwise fails to link. Give the common display layer ownership of the state.
+edc = K/'drivers/video/k3/edc_overlay.c'
+es = edc.read_text()
+extern_decl = 'extern bool sbl_low_power_mode;'
+common_def = 'bool sbl_low_power_mode = false;'
+if common_def not in es:
+    if extern_decl not in es:
+        raise SystemExit('sbl_low_power_mode declaration not found in common EDC code')
+    es = es.replace(extern_decl, common_def, 1)
+edc.write_text(es)
+if extern_decl in edc.read_text() and edc.read_text().count(extern_decl) > 0:
+    # A second occurrence is harmless as an extern, but the common definition must be unique.
+    pass
+if edc.read_text().count(common_def) != 1:
+    raise SystemExit('expected exactly one common sbl_low_power_mode definition')
+
 # Install reconstructed HWT101 NAND controller based on OEM register/IRQ traces.
 hinand = Path('scripts/add_hwt101_hinand_v340.py')
 if not hinand.exists():
@@ -100,4 +118,8 @@ if 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' not in reg.read_text():
     raise SystemExit('SN65 LDO17 supply missing')
 if not (K/'drivers/mtd/nand/hinand_hwt101.c').exists():
     raise SystemExit('HWT101 hinand source missing')
-print('HWT101 V3.41 OEM2 + SN65 + NAND board patch: OK')
+if 'panel/mipi_toshiba_MDY90.o' in mk.read_text():
+    raise SystemExit('MDY90 unexpectedly returned to k3fb objects')
+if edc.read_text().count(common_def) != 1:
+    raise SystemExit('common sbl_low_power_mode definition lost')
+print('HWT101 V3.41 OEM2 + SN65 + NAND + common SBL board patch: OK')
