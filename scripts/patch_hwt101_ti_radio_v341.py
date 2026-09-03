@@ -22,24 +22,35 @@ for name in ('board-k3v2oem1.c', 'board-k3v2oem2.c'):
 
 cfg = K/'.config'
 cs = cfg.read_text()
+def clear(name):
+    global cs
+    cs = re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n', '', cs, flags=re.M)
+    cs = re.sub(r'^# CONFIG_'+re.escape(name)+r' is not set\n', '', cs, flags=re.M)
 def set_y(name):
     global cs
-    cs = re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n', '', cs, flags=re.M)
-    cs = re.sub(r'^# CONFIG_'+re.escape(name)+r' is not set\n', '', cs, flags=re.M)
+    clear(name)
     cs += 'CONFIG_'+name+'=y\n'
+def set_m(name):
+    global cs
+    clear(name)
+    cs += 'CONFIG_'+name+'=m\n'
 def set_n(name):
     global cs
-    cs = re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n', '', cs, flags=re.M)
-    cs = re.sub(r'^# CONFIG_'+re.escape(name)+r' is not set\n', '', cs, flags=re.M)
+    clear(name)
     cs += '# CONFIG_'+name+' is not set\n'
 
-# TI connectivity present in OEM/FIX10.
-for opt in ('TI_ST', 'WL12XX_PLATFORM_DATA'):
-    set_y(opt)
+# OEM kernel has TI Shared Transport built in, but only the wl12xx platform-data shim
+# built in. Keep the old wl12xx/mac80211 drivers modular so their implementation does
+# not enter zImage while satisfying WL12XX_PLATFORM_DATA's Kconfig dependency.
+set_y('TI_ST')
+for opt in ('MAC80211', 'WL12XX_MENU', 'WL12XX', 'WL12XX_SDIO'):
+    set_m(opt)
+set_y('WL12XX_PLATFORM_DATA')
 
-# Generic U9508 Broadcom Wi-Fi/BT is not part of HWT101.
+# Generic U9508 Broadcom Wi-Fi/BT is not part of HWT101. Keep BCM GPS untouched:
+# the live OEM kernel does contain the k3_gps_bcm driver.
 for opt in ('BCMDHD', 'BCMDHD_BCM', 'BT_BCM_POWER'):
     set_n(opt)
 
 cfg.write_text(cs)
-print('HWT101 TI radio parity: TI_ST/WL12XX pdata enabled; Broadcom DHD/BT board refs disabled')
+print('HWT101 TI radio parity: TI_ST + wl12xx pdata builtin, wl12xx SDIO modular, Broadcom DHD/BT disabled')
