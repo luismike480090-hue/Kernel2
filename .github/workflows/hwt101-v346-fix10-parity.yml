@@ -42,7 +42,7 @@ jobs:
       - name: Clone Android Google GCC 4.6 toolchain
         run: |
           set -e
-          git clone --depth 1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6 google-gcc-4.6
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git google-gcc-4.6
           test -x google-gcc-4.6/bin/arm-eabi-gcc
           file google-gcc-4.6/bin/arm-eabi-gcc | tee GCC-FILE-V346.txt
           google-gcc-4.6/bin/arm-eabi-gcc --version | tee GCC-V346.txt
