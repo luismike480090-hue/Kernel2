@@ -1,0 +1,243 @@
+name: HWT101 V3.48 FIX10 SWAP ZRAM RE
+
+on:
+  push:
+    branches: [ v348-fix10-swap-zram-re ]
+    paths:
+      - '.github/workflows/hwt101-v348-fix10-swap-zram-re.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Kernel2 branch
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils lzop libspreadsheet-parseexcel-perl python3 libc6-i386 lib32z1 lib32stdc++6
+
+      - name: Clone exact S10 K3V2 base
+        run: |
+          set -e
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+          test "$(git -C kernel rev-parse HEAD)" = "d0ea9345cfc3992a3d959482579a8fc7f1108802"
+
+      - name: Clone Huawei K3V2 donor
+        run: |
+          set -e
+          git clone --depth 1 -b cm-11 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git huawei-k3-reference
+
+      - name: Clone OEM-era Android GCC 4.6
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git google-gcc-4.6
+          test -x google-gcc-4.6/bin/arm-eabi-gcc
+          google-gcc-4.6/bin/arm-eabi-gcc --version | tee GCC-V348.txt
+          grep -qi '4.6.x-google' GCC-V348.txt
+          echo "TCBIN=$PWD/google-gcc-4.6/bin" >> "$GITHUB_ENV"
+
+      - name: Import recovered HWT101 hardware
+        run: |
+          set -e
+          chmod +x scripts/*.sh scripts/*.py
+          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY-V348.txt
+          python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered | tee PREPARE-HARDWARE-V348.txt
+          python3 scripts/resolve_hiusb_providers.py kernel huawei-k3-reference
+
+      - name: Patch old Perl syntax
+        working-directory: kernel
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure exact S10 OEM1 base
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+
+      - name: Apply recovered HWT101 hardware parity
+        run: |
+          set -e
+          bash scripts/apply_hwt101_v3.sh kernel
+          python3 scripts/port_goodix_hwt101.py kernel
+          python3 scripts/port_gc0339_hwt101.py kernel
+          python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
+          python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
+
+      - name: Enable only SWAP ZRAM memory block on V3.47 family
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('kernel/.config')
+          s=p.read_text()
+          def set_y(name):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += 'CONFIG_'+name+'=y\n'
+          def unset(name):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += '# CONFIG_'+name+' is not set\n'
+          def val(name,value):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += 'CONFIG_'+name+'='+value+'\n'
+
+          # Linux 3.0.8 ZRAM in this Huawei tree uses XVMALLOC + LZO.
+          for x in ('SWAP','BLOCK','SYSFS','STAGING','XVMALLOC','ZRAM','LZO_COMPRESS','LZO_DECOMPRESS'):
+              set_y(x)
+          unset('ZRAM_DEBUG')
+          unset('ZCACHE')
+          # Keep panic reboot visible for early-boot diagnosis.
+          val('PANIC_TIMEOUT','1')
+
+          s=re.sub(r'^CONFIG_LOCALVERSION=.*\n|^CONFIG_LOCALVERSION_AUTO=.*\n|^# CONFIG_LOCALVERSION_AUTO is not set\n','',s,flags=re.M)
+          s += 'CONFIG_LOCALVERSION="-g883717a-dirty"\n'
+          s += '# CONFIG_LOCALVERSION_AUTO is not set\n'
+          p.write_text(s)
+          PY
+          : > kernel/.scmversion
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make -C kernel LOCALVERSION= oldnoconfig
+
+          for x in SWAP BLOCK SYSFS STAGING XVMALLOC ZRAM LZO_COMPRESS LZO_DECOMPRESS; do
+            grep -qx "CONFIG_${x}=y" kernel/.config
+          done
+          grep -qx '# CONFIG_ZRAM_DEBUG is not set' kernel/.config
+          grep -qx '# CONFIG_ZCACHE is not set' kernel/.config
+          grep -qx 'CONFIG_PANIC_TIMEOUT=1' kernel/.config
+          grep -E 'CONFIG_(SWAP|BLOCK|SYSFS|STAGING|XVMALLOC|ZRAM|ZRAM_DEBUG|ZCACHE|LZO_COMPRESS|LZO_DECOMPRESS|PANIC_TIMEOUT)' kernel/.config | tee V348-MEMORY-CONFIG.txt || true
+
+      - name: Prove OEM release
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          KR="$(make -s LOCALVERSION= kernelrelease | tail -n 1 | tr -d '\r\n')"
+          echo "$KR" | tee ../KERNELRELEASE-V348.txt
+          test "$KR" = '3.0.8-g883717a-dirty'
+
+      - name: Build V3.48 zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V348.log
+          test -s arch/arm/boot/zImage
+          stat -c%s arch/arm/boot/zImage | tee ../SIZE-zImage-V348.txt
+          sha256sum arch/arm/boot/zImage | tee ../SHA256-zImage-V348.txt
+
+      - name: Prove SWAP implementation is real, not ENOSYS alias
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          NI="$(awk '$3=="sys_ni_syscall"{print $1; exit}' "$MAP")"
+          ON="$(awk '$3=="sys_swapon"{print $1; exit}' "$MAP")"
+          OFF="$(awk '$3=="sys_swapoff"{print $1; exit}' "$MAP")"
+          test -n "$NI" && test -n "$ON" && test -n "$OFF"
+          echo "sys_ni_syscall=$NI" | tee V348-SWAP-PROOF.txt
+          echo "sys_swapon=$ON" | tee -a V348-SWAP-PROOF.txt
+          echo "sys_swapoff=$OFF" | tee -a V348-SWAP-PROOF.txt
+          test "$ON" != "$NI"
+          test "$OFF" != "$NI"
+          grep -E ' [tT] (sys_swapon|sys_swapoff|swap_setup|zram_init|xv_malloc|xv_free|lzo1x_1_compress)$' "$MAP" | tee -a V348-SWAP-PROOF.txt
+          grep -Eq ' [tT] sys_swapon$' "$MAP"
+          grep -Eq ' [tT] sys_swapoff$' "$MAP"
+          grep -Eq ' [tT] zram_init$' "$MAP"
+          grep -Eq ' [tT] xv_malloc$' "$MAP"
+          grep -Eq ' [tT] lzo1x_1_compress$' "$MAP"
+
+      - name: HWT101 hardware parity audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          CFG=kernel/.config
+          required=(k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init sn65dsi83_probe goodix_ts_probe gc0339_init s5k5cag_init bq2419x_charger_probe init_yaffs_fs yaffs2_mount)
+          : > V348-BOOT-SYMBOLS.txt
+          for sym in "${required[@]}"; do
+            c="$(grep -Ec " [tT] ${sym}$" "$MAP" || true)"
+            echo "$sym=$c" | tee -a V348-BOOT-SYMBOLS.txt
+            test "$c" -ge 1
+          done
+          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP" || true)" -eq 2
+          grep -Eq ' [rRdDtT] __mach_desc_K3V2OEM1$' "$MAP"
+          grep -Eq ' [rRdDtT] __mach_desc_K3V2OEM2$' "$MAP"
+          grep -qx 'CONFIG_HWT101_SN65DSI83=y' "$CFG"
+          grep -qx 'CONFIG_YAFFS_FS=y' "$CFG"
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' "$CFG"
+          if grep -Eq ' [tT] (dhd_bus_start|btbcm_device|bcm_bluesleep_device)$' "$MAP"; then exit 92; fi
+          {
+            echo 'HWT101 V3.48 FIX10-FAMILY SWAP/ZRAM REBUILD'
+            echo 'SOURCE=S10 K3V2 d0ea9345 + recovered HWT101 hardware parity'
+            echo 'TOOLCHAIN=Android arm-eabi GCC 4.6.x-google'
+            echo 'KERNEL_RELEASE=3.0.8-g883717a-dirty'
+            echo 'CONFIG_SWAP=y'
+            echo 'CONFIG_ZRAM=y'
+            echo 'CONFIG_XVMALLOC=y'
+            echo 'CONFIG_LZO_COMPRESS=y'
+            echo 'CONFIG_LZO_DECOMPRESS=y'
+            echo 'CONFIG_ZRAM_DEBUG=n'
+            echo 'CONFIG_ZCACHE=n'
+            echo 'PANIC_TIMEOUT=1'
+            echo 'HARDWARE_SYMBOL_AUDIT=PASS'
+            echo 'SWAP_ENOSYS_ALIAS_CHECK=PASS'
+          } | tee V348-AUDIT.txt
+
+      - name: Create runtime ZRAM activation script
+        shell: bash
+        run: |
+          cat > INIT-ZRAM-HWT101.sh <<'EOF'
+          #!/system/bin/sh
+          # HWT101 / Android 4.1.2 - conservative 256 MiB compressed swap
+          Z=/sys/block/zram0
+          [ -d "$Z" ] || exit 1
+          swapoff /dev/block/zram0 2>/dev/null || true
+          echo 1 > "$Z/reset" 2>/dev/null || true
+          echo 268435456 > "$Z/disksize"
+          /system/xbin/busybox mkswap /dev/block/zram0
+          /system/xbin/busybox swapon -p 100 /dev/block/zram0
+          echo 80 > /proc/sys/vm/swappiness
+          cat /proc/swaps
+          EOF
+          chmod +x INIT-ZRAM-HWT101.sh
+
+      - name: Upload V3.48 reverse-engineered kernel artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.48-FIX10-SWAP-ZRAM-RE
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/vmlinux
+            kernel/.config
+            BUILD-V348.log
+            GCC-V348.txt
+            KERNELRELEASE-V348.txt
+            V348-MEMORY-CONFIG.txt
+            V348-SWAP-PROOF.txt
+            V348-BOOT-SYMBOLS.txt
+            V348-AUDIT.txt
+            SIZE-zImage-V348.txt
+            SHA256-zImage-V348.txt
+            DONOR-HARDWARE-INVENTORY-V348.txt
+            PREPARE-HARDWARE-V348.txt
+            INIT-ZRAM-HWT101.sh
