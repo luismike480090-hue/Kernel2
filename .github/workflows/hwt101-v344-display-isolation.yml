@@ -1,0 +1,120 @@
+name: HWT101 V3.44 DISPLAY ISOLATION DIAGNOSTIC
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils lzop libspreadsheet-parseexcel-perl python3
+      - name: Clone Huawei K3V2 base
+        run: |
+          git clone https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          git -C kernel checkout 675c975cf79dd2b0272b452e5706e1ba60e1b428
+      - name: GCC 4.6.3
+        run: |
+          wget -q https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          TC="$(find "$PWD" -type f -name 'arm-unknown-linux-gnueabi-gcc' | head -1)"
+          test -n "$TC"
+          echo "TCBIN=$(dirname "$TC")" >> "$GITHUB_ENV"
+      - name: Host and YAFFS compatibility
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+          sed -i '/^[[:space:]]*#include[[:space:]]*<linux\/smp_lock\.h>[[:space:]]*$/d' fs/yaffs2/yaffs_vfs.c || true
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('fs/yaffs2/yaffs_vfs.c'); s=p.read_text()
+          s=re.sub(r'static int yaffs_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name,\s*void \*data, struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs_internal_read_super_mtd, mnt\);\s*\}', 'static struct dentry *yaffs_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data, yaffs_internal_read_super_mtd);\\n}', s, flags=re.S)
+          s=re.sub(r'static int yaffs2_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name, void \*data,\s*struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs2_internal_read_super_mtd, mnt\);\s*\}', 'static struct dentry *yaffs2_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data, yaffs2_internal_read_super_mtd);\\n}', s, flags=re.S)
+          s=s.replace('.get_sb = yaffs_read_super,', '.mount = yaffs_mount,').replace('.get_sb = yaffs2_read_super,', '.mount = yaffs2_mount,')
+          p.write_text(s)
+          PY
+      - name: Configure V3.41 parity then isolate NAND and display
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make -C kernel hisi_k3v2oem1_defconfig
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('kernel/.config'); s=p.read_text()
+          def y(n):
+            global s; s=re.sub(r'^CONFIG_'+n+r'=.*\n|^# CONFIG_'+n+r' is not set\n','',s,flags=re.M); s+='CONFIG_'+n+'=y\n'
+          def n(n):
+            global s; s=re.sub(r'^CONFIG_'+n+r'=.*\n|^# CONFIG_'+n+r' is not set\n','',s,flags=re.M); s+='# CONFIG_'+n+' is not set\n'
+          for x in ['MACH_K3V2OEM1','MACH_K3V2OEM2','LCD_TOSHIBA_MDW70','MTD','MTD_BLOCK','MTD_CMDLINE_PARTS','MTD_NAND','MTD_NAND_IDS','MISC_FILESYSTEMS','YAFFS_FS','YAFFS_YAFFS1','YAFFS_YAFFS2','YAFFS_AUTO_YAFFS2']: y(x)
+          for x in ['LCD_TOSHIBA_MDY90','LCD_CMI_OTM1280A','LCD_PANASONIC_VVX10F002A00','LCD_JDI_OTM1282B','ZRAM','ZSMALLOC','BCMDHD']: n(x)
+          s=re.sub(r'^CONFIG_LOCALVERSION=.*\n|^CONFIG_LOCALVERSION_AUTO=.*\n|^# CONFIG_LOCALVERSION_AUTO is not set\n','',s,flags=re.M)
+          s+='CONFIG_LOCALVERSION="-g883717a-dirty"\n# CONFIG_LOCALVERSION_AUTO is not set\n'
+          p.write_text(s)
+          PY
+          rm -f kernel/.scmversion
+          make -C kernel LOCALVERSION= oldnoconfig
+          python3 scripts/patch_hwt101_oem2_v341.py kernel
+          python3 -c "p='kernel/drivers/mtd/nand/hinand_hwt101.c'; s=open(p).read(); old='reinit_completion(&h->done);'; new='INIT_COMPLETION(h->done);'; assert old in s; open(p,'w').write(s.replace(old,new))"
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          cfg=Path('kernel/.config'); s=cfg.read_text(); s=re.sub(r'^CONFIG_PANIC_TIMEOUT=.*\n|^# CONFIG_PANIC_TIMEOUT is not set\n','',s,flags=re.M); s+='CONFIG_PANIC_TIMEOUT=0\n'; cfg.write_text(s)
+          # Keep NAND isolated exactly as V3.43.
+          mk=Path('kernel/drivers/mtd/nand/Makefile'); t=mk.read_text(); t=t.replace('obj-y += hinand_hwt101.o\n',''); mk.write_text(t)
+          # Isolate the complete K3 framebuffer/display stack from this diagnostic build.
+          mk=Path('kernel/drivers/video/Makefile'); t=mk.read_text()
+          lines=t.splitlines(True); kept=[]; removed=[]
+          for line in lines:
+            if re.search(r'k3|K3', line) and ('obj-' in line or 'drivers/video/k3' in line or 'k3/' in line): removed.append(line)
+            else: kept.append(line)
+          mk.write_text(''.join(kept))
+          Path('V344-REMOVED-DISPLAY.txt').write_text(''.join(removed))
+          if not removed: raise SystemExit('No K3 display Makefile entry removed')
+          PY
+          make -C kernel LOCALVERSION= oldnoconfig
+      - name: Build V3.44
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm CROSS_COMPILE="$TCBIN/arm-unknown-linux-gnueabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V344.log
+      - name: Audit V3.44
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          grep -E ' [rRdDtT] __mach_desc_K3V2OEM2$' "$MAP"
+          test "$(grep -Ec ' [tT] k3v2oem1_init$' "$MAP")" -eq 2
+          ! grep -Eq ' [tT] (hinand_probe|hinand_module_init)$' "$MAP"
+          ! grep -Eq ' [tT] (k3_fb_init|mipi_dsi_probe|mipi_toshiba_panel_init|sn65dsi83_probe)$' "$MAP"
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V344.txt
+          wc -c kernel/arch/arm/boot/zImage | tee SIZE-zImage-V344.txt
+          echo DISPLAY_STACK_LINKED=NO | tee V344-DIAGNOSTIC.txt
+          echo NAND_RECONSTRUCTION_LINKED=NO | tee -a V344-DIAGNOSTIC.txt
+          echo PANIC_TIMEOUT=0 | tee -a V344-DIAGNOSTIC.txt
+      - name: Upload V3.44 diagnostic artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.44-DISPLAY-ISOLATION-DIAGNOSTIC
+          include-hidden-files: true
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/.config
+            kernel/V344-REMOVED-DISPLAY.txt
+            BUILD-V344.log
+            V344-DIAGNOSTIC.txt
+            SHA256-zImage-V344.txt
+            SIZE-zImage-V344.txt
