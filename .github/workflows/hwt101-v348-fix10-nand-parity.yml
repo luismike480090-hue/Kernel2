@@ -1,0 +1,240 @@
+name: HWT101 V3.48 FIX10 NAND PARITY
+
+on:
+  push:
+    branches: [ v348-fix10-nand-parity ]
+    paths:
+      - '.github/workflows/hwt101-v348-fix10-nand-parity.yml'
+      - 'scripts/patch_hwt101_hinand_fix10_v348.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Kernel2 branch
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git wget xz-utils lzop \
+            libspreadsheet-parseexcel-perl python3 libc6-i386 lib32z1 lib32stdc++6
+
+      - name: Clone exact S10 K3V2 base
+        run: |
+          set -e
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+          test "$(git -C kernel rev-parse HEAD)" = "d0ea9345cfc3992a3d959482579a8fc7f1108802"
+          git -C kernel rev-parse HEAD | tee S10-HEAD-V348.txt
+
+      - name: Clone Huawei K3V2 donor
+        run: |
+          set -e
+          git clone --depth 1 -b cm-11 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git huawei-k3-reference
+          git -C huawei-k3-reference rev-parse HEAD | tee HUAWEI-DONOR-HEAD-V348.txt
+
+      - name: Clone Android Google GCC 4.6
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git google-gcc-4.6
+          test -x google-gcc-4.6/bin/arm-eabi-gcc
+          google-gcc-4.6/bin/arm-eabi-gcc --version | tee GCC-V348.txt
+          grep -qi '4.6.x-google' GCC-V348.txt
+          echo "TCBIN=$PWD/google-gcc-4.6/bin" >> "$GITHUB_ENV"
+
+      - name: Import recovered HWT101 hardware layer
+        run: |
+          set -e
+          chmod +x scripts/*.sh scripts/*.py
+          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY-V348.txt
+          python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered | tee PREPARE-HARDWARE-V348.txt
+          python3 scripts/resolve_hiusb_providers.py kernel huawei-k3-reference
+          python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-PRE-V348.txt
+
+      - name: Patch old Perl syntax
+        working-directory: kernel
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure exact S10 OEM1 base
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+
+      - name: Apply recovered HWT101 hardware parity
+        run: |
+          set -e
+          bash scripts/apply_hwt101_v3.sh kernel
+          python3 scripts/port_goodix_hwt101.py kernel
+          python3 scripts/port_gc0339_hwt101.py kernel
+          python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
+          python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
+
+      - name: Restore FIX10 NAND controller parity
+        run: |
+          set -e
+          python3 scripts/patch_hwt101_hinand_fix10_v348.py kernel | tee V348-NAND-PATCH.txt
+          grep -q 'K3V2_NAND_EN_REG3' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'status & 0x201' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'wait_for_completion_timeout(&h->done, 0x2710)' kernel/drivers/mtd/nand/hinand_hwt101.c
+
+      - name: Force parity baseline no SWAP no ZRAM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('kernel/.config'); s=p.read_text()
+          def set_n(name):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += '# CONFIG_'+name+' is not set\n'
+          def set_y(name):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += 'CONFIG_'+name+'=y\n'
+          def set_val(name,val):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += 'CONFIG_'+name+'='+val+'\n'
+          for x in ('SWAP','ZRAM','XVMALLOC','ZRAM_DEBUG'):
+              set_n(x)
+          for x in ('MTD','MTD_BLOCK','MTD_CMDLINE_PARTS','MTD_NAND','MTD_NAND_IDS','MISC_FILESYSTEMS','YAFFS_FS','YAFFS_YAFFS2'):
+              set_y(x)
+          set_val('PANIC_TIMEOUT','1')
+          s=re.sub(r'^CONFIG_LOCALVERSION=.*\n|^CONFIG_LOCALVERSION_AUTO=.*\n|^# CONFIG_LOCALVERSION_AUTO is not set\n','',s,flags=re.M)
+          s += 'CONFIG_LOCALVERSION="-g883717a-dirty"\n# CONFIG_LOCALVERSION_AUTO is not set\n'
+          p.write_text(s)
+          PY
+          : > kernel/.scmversion
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make -C kernel LOCALVERSION= oldnoconfig
+          {
+            echo '===== V3.48 STORAGE / MEMORY CONFIG ====='
+            grep -E 'CONFIG_(MTD|MTD_BLOCK|MTD_CMDLINE_PARTS|MTD_NAND|MTD_NAND_IDS|YAFFS|SWAP|ZRAM|XVMALLOC|PANIC_TIMEOUT)' kernel/.config || true
+          } | tee V348-CONFIG-AUDIT.txt
+          grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
+          grep -qx 'CONFIG_MTD_NAND_IDS=y' kernel/.config
+          grep -qx 'CONFIG_MTD_BLOCK=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_FS=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx '# CONFIG_ZRAM is not set' kernel/.config
+          grep -qx 'CONFIG_PANIC_TIMEOUT=1' kernel/.config
+
+      - name: Prove OEM kernel release
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          KR="$(make -s LOCALVERSION= kernelrelease | tail -n1 | tr -d '\r\n')"
+          echo "$KR" | tee ../KERNELRELEASE-V348.txt
+          test "$KR" = '3.0.8-g883717a-dirty'
+
+      - name: Build V3.48 zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V348.log
+          test -s arch/arm/boot/zImage
+          wc -c arch/arm/boot/zImage | tee ../SIZE-zImage-V348.txt
+          sha256sum arch/arm/boot/zImage | tee ../SHA256-zImage-V348.txt
+
+      - name: FIX10 NAND + hardware audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          CFG=kernel/.config
+          : > V348-SYMBOL-AUDIT.txt
+          required=(
+            nand_base_init
+            nand_scan
+            hinand_module_init
+            hinand_probe
+            hinand_irq
+            hinand_init
+            init_yaffs_fs
+            yaffs2_mount
+            k3_fb_init
+            mipi_dsi_probe
+            mipi_toshiba_panel_init
+            sn65dsi83_probe
+            goodix_ts_probe
+            gc0339_init
+            s5k5cag_init
+            bq2419x_charger_probe
+          )
+          for sym in "${required[@]}"; do
+            c="$(grep -Ec " [tT] ${sym}$" "$MAP" || true)"
+            echo "$sym=$c" | tee -a V348-SYMBOL-AUDIT.txt
+            test "$c" -ge 1
+          done
+          grep -E ' [tT] __initcall_nand_base_init6$' "$MAP" | tee -a V348-SYMBOL-AUDIT.txt
+          grep -E ' [tT] __initcall_hinand_module_init6$' "$MAP" | tee -a V348-SYMBOL-AUDIT.txt
+          grep -E ' [rRdDtT] __mach_desc_K3V2OEM1$' "$MAP" | tee -a V348-SYMBOL-AUDIT.txt
+          grep -qx 'CONFIG_MTD_NAND=y' "$CFG"
+          grep -qx '# CONFIG_SWAP is not set' "$CFG"
+          grep -qx '# CONFIG_ZRAM is not set' "$CFG"
+          {
+            echo 'HWT101 V3.48 FIX10 NAND PARITY'
+            echo 'FIX10_BOOT_SHA256=070a1c19c2abb7a5d92cdc4094619c5322c7f83204adc5a334830c5a691979c9'
+            echo 'OEM_NAND_IRQ=46'
+            echo 'OEM_NAND_MMIO=fd100000-fd1007ff'
+            echo 'OEM_NAND_AUX=fd200000-fd2000af'
+            echo 'OEM_NAND_ID=2c:88 Micron 8GiB'
+            echo 'OEM_CLOCK_RESET_SEQUENCE=RESTORED'
+            echo 'SWAP=DISABLED'
+            echo 'ZRAM=DISABLED'
+            echo 'PANIC_TIMEOUT=1'
+            echo 'AUDIT=PASS'
+          } | tee V348-AUDIT.txt
+
+      - name: Diagnostics
+        if: always()
+        run: |
+          set +e
+          cat V348-NAND-PATCH.txt 2>/dev/null || true
+          cat V348-CONFIG-AUDIT.txt 2>/dev/null || true
+          cat V348-SYMBOL-AUDIT.txt 2>/dev/null || true
+          cat V348-AUDIT.txt 2>/dev/null || true
+          grep -nEi 'error:|fatal error:|undefined reference|multiple definition|No rule to make target|collect2:' BUILD-V348.log 2>/dev/null | tail -n 300 || true
+          tail -n 150 BUILD-V348.log 2>/dev/null || true
+
+      - name: Upload V3.48 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.48-FIX10-NAND-PARITY
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/vmlinux
+            kernel/.config
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            BUILD-V348.log
+            KERNELRELEASE-V348.txt
+            GCC-V348.txt
+            S10-HEAD-V348.txt
+            HUAWEI-DONOR-HEAD-V348.txt
+            V348-NAND-PATCH.txt
+            V348-CONFIG-AUDIT.txt
+            V348-SYMBOL-AUDIT.txt
+            V348-AUDIT.txt
+            SIZE-zImage-V348.txt
+            SHA256-zImage-V348.txt
