@@ -48,7 +48,7 @@ jobs:
             echo CONFIG_PANIC_TIMEOUT=0
           } >> .config
           : > .scmversion
-          yes "" | make oldconfig
+          make oldconfig </dev/null
           grep -qx 'CONFIG_PANIC_TIMEOUT=0' .config
           make -s kernelrelease | tee ../KERNELRELEASE-V345.txt
           cp .config ../CONFIG-V345.txt
