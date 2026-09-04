@@ -1,0 +1,97 @@
+name: HWT101 V3.45 FIX11 PANIC HOLD
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make gcc g++ bc bison flex libncurses-dev libssl-dev libelf-dev libspreadsheet-parseexcel-perl python3 wget xz-utils cpio file perl
+      - name: Clone exact FIX11 source family
+        run: |
+          git clone --depth 1 https://github.com/AnClark/kernel-huawei-p6.git kernel
+          git -C kernel rev-parse HEAD | tee ANCLARK-HEAD.txt
+      - name: GCC 4.6.3
+        run: |
+          mkdir -p "$HOME/toolchain" && cd "$HOME/toolchain"
+          wget -q -O gcc-arm.tar.xz https://www.kernel.org/pub/tools/crosstool/files/bin/x86_64/4.6.3/x86_64-gcc-4.6.3-nolibc_arm-unknown-linux-gnueabi.tar.xz
+          tar -xf gcc-arm.tar.xz
+          GCC_PATH="$(find "$HOME/toolchain" -type f -name arm-unknown-linux-gnueabi-gcc | head -1)"
+          test -n "$GCC_PATH"
+          echo "TOOLBIN=$(dirname "$GCC_PATH")" >> "$GITHUB_ENV"
+      - name: Configure exactly like FIX11 plus panic hold
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TOOLBIN/arm-unknown-linux-gnueabi-"
+          make mrproper
+          if [ -f arch/arm/configs/cm_k3v2oem1_defconfig ]; then make cm_k3v2oem1_defconfig; else make k3v2oem1_defconfig; fi
+          for x in SWAP STAGING ZRAM XVMALLOC LZO_COMPRESS LZO_DECOMPRESS LOCALVERSION LOCALVERSION_AUTO PANIC_TIMEOUT; do sed -i "/^CONFIG_${x}=/d;/^# CONFIG_${x} is not set/d" .config; done
+          {
+            echo CONFIG_SWAP=y
+            echo CONFIG_STAGING=y
+            echo CONFIG_ZRAM=y
+            echo '# CONFIG_ZRAM_DEBUG is not set'
+            echo CONFIG_XVMALLOC=y
+            echo CONFIG_LZO_COMPRESS=y
+            echo CONFIG_LZO_DECOMPRESS=y
+            echo 'CONFIG_LOCALVERSION="-g883717a-dirty"'
+            echo '# CONFIG_LOCALVERSION_AUTO is not set'
+            echo CONFIG_PANIC_TIMEOUT=0
+          } >> .config
+          : > .scmversion
+          yes "" | make oldconfig
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' .config
+          make -s kernelrelease | tee ../KERNELRELEASE-V345.txt
+          cp .config ../CONFIG-V345.txt
+      - name: Build
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TOOLBIN/arm-unknown-linux-gnueabi-"
+          make -j4 zImage 2>&1 | tee ../BUILD-V345.log
+      - name: Audit against FIX11 fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f kernel/arch/arm/boot/zImage
+          cp kernel/System.map SYSTEM-MAP-V345.txt
+          sha256sum kernel/arch/arm/boot/zImage | tee SHA256-zImage-V345.txt
+          wc -c kernel/arch/arm/boot/zImage | tee SIZE-zImage-V345.txt
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+          grep -q '^CONFIG_ZRAM=y' kernel/.config
+          grep -q '^CONFIG_SWAP=y' kernel/.config
+          grep -E ' [tT] (k3_fb_init|mipi_dsi_probe|mipi_toshiba_panel_init)' kernel/System.map || true
+          grep -E ' [rRdDtT] __mach_desc_K3V2OEM[12]$' kernel/System.map || true
+          {
+            echo V345_BASE=ANCLARK_FIX11
+            echo ONLY_INTENTIONAL_DIAGNOSTIC_DELTA=PANIC_TIMEOUT_0
+            echo EXPECTED_REFERENCE_FIX11_ZIMAGE_SIZE=4981504
+            echo EXPECTED_REFERENCE_FIX11_ZIMAGE_SHA256=e4b77c67b4200982e568743fe540e2ff11bff9aad10adc6a0598d551e114e34e
+          } | tee V345-DIAGNOSTIC.txt
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.45-FIX11-PANIC-HOLD
+          include-hidden-files: true
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/.config
+            kernel/System.map
+            kernel/vmlinux
+            BUILD-V345.log
+            KERNELRELEASE-V345.txt
+            ANCLARK-HEAD.txt
+            V345-DIAGNOSTIC.txt
+            SHA256-zImage-V345.txt
+            SIZE-zImage-V345.txt
