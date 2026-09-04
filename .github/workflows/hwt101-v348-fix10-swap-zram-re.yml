@@ -74,7 +74,7 @@ jobs:
           python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
           python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
 
-      - name: Enable only SWAP ZRAM memory block on V3.47 family
+      - name: Enable SWAP and ZRAM on V3.47 source family
         shell: bash
         run: |
           set -euo pipefail
@@ -96,12 +96,11 @@ jobs:
               s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
               s += 'CONFIG_'+name+'='+value+'\n'
 
-          # Linux 3.0.8 ZRAM in this Huawei tree uses XVMALLOC + LZO.
+          # Linux 3.0.8 ZRAM in this S10/K3V2 tree uses XVMALLOC + LZO.
           for x in ('SWAP','BLOCK','SYSFS','STAGING','XVMALLOC','ZRAM','LZO_COMPRESS','LZO_DECOMPRESS'):
               set_y(x)
           unset('ZRAM_DEBUG')
-          unset('ZCACHE')
-          # Keep panic reboot visible for early-boot diagnosis.
+          # ZCACHE is not a Kconfig symbol in this exact S10 tree; do not fabricate it.
           val('PANIC_TIMEOUT','1')
 
           s=re.sub(r'^CONFIG_LOCALVERSION=.*\n|^CONFIG_LOCALVERSION_AUTO=.*\n|^# CONFIG_LOCALVERSION_AUTO is not set\n','',s,flags=re.M)
@@ -117,9 +116,8 @@ jobs:
             grep -qx "CONFIG_${x}=y" kernel/.config
           done
           grep -qx '# CONFIG_ZRAM_DEBUG is not set' kernel/.config
-          grep -qx '# CONFIG_ZCACHE is not set' kernel/.config
           grep -qx 'CONFIG_PANIC_TIMEOUT=1' kernel/.config
-          grep -E 'CONFIG_(SWAP|BLOCK|SYSFS|STAGING|XVMALLOC|ZRAM|ZRAM_DEBUG|ZCACHE|LZO_COMPRESS|LZO_DECOMPRESS|PANIC_TIMEOUT)' kernel/.config | tee V348-MEMORY-CONFIG.txt || true
+          grep -E 'CONFIG_(SWAP|BLOCK|SYSFS|STAGING|XVMALLOC|ZRAM|ZRAM_DEBUG|LZO_COMPRESS|LZO_DECOMPRESS|PANIC_TIMEOUT)' kernel/.config | tee V348-MEMORY-CONFIG.txt
 
       - name: Prove OEM release
         working-directory: kernel
@@ -193,7 +191,7 @@ jobs:
             echo 'CONFIG_LZO_COMPRESS=y'
             echo 'CONFIG_LZO_DECOMPRESS=y'
             echo 'CONFIG_ZRAM_DEBUG=n'
-            echo 'CONFIG_ZCACHE=n'
+            echo 'CONFIG_ZCACHE=NOT_PRESENT_IN_S10_KCONFIG'
             echo 'PANIC_TIMEOUT=1'
             echo 'HARDWARE_SYMBOL_AUDIT=PASS'
             echo 'SWAP_ENOSYS_ALIAS_CHECK=PASS'
