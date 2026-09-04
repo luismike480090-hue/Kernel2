@@ -1,0 +1,254 @@
+name: HWT101 V3.46 FIX10 PARITY NO SWAP
+
+on:
+  push:
+    branches: [ v346-fix10-parity ]
+    paths:
+      - '.github/workflows/hwt101-v346-fix10-parity.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Kernel2 branch
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc git wget xz-utils lzop \
+            libspreadsheet-parseexcel-perl python3 \
+            libc6-i386 lib32z1 lib32stdc++6
+
+      - name: Clone exact S10 K3V2 base
+        run: |
+          set -e
+          git clone https://github.com/xxx-man/android_kernel_huawei_s10-101x.git kernel
+          git -C kernel checkout d0ea9345cfc3992a3d959482579a8fc7f1108802
+          echo "S10_HEAD=$(git -C kernel rev-parse HEAD)" | tee S10-HEAD-V346.txt
+          test "$(git -C kernel rev-parse HEAD)" = "d0ea9345cfc3992a3d959482579a8fc7f1108802"
+
+      - name: Clone Huawei K3V2 donor
+        run: |
+          set -e
+          git clone --depth 1 -b cm-11 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git huawei-k3-reference
+          git -C huawei-k3-reference rev-parse HEAD | tee HUAWEI-DONOR-HEAD-V346.txt
+
+      - name: Clone Android Google GCC 4.6 toolchain
+        run: |
+          set -e
+          git clone --depth 1 https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-eabi-4.6 google-gcc-4.6
+          test -x google-gcc-4.6/bin/arm-eabi-gcc
+          file google-gcc-4.6/bin/arm-eabi-gcc | tee GCC-FILE-V346.txt
+          google-gcc-4.6/bin/arm-eabi-gcc --version | tee GCC-V346.txt
+          echo "TCBIN=$PWD/google-gcc-4.6/bin" >> "$GITHUB_ENV"
+          if grep -qi '4.6.x-google' GCC-V346.txt; then
+            echo 'GOOGLE_GCC_46_MATCH=YES' | tee GCC-MATCH-V346.txt
+          else
+            echo 'GOOGLE_GCC_46_MATCH=NO' | tee GCC-MATCH-V346.txt
+            exit 96
+          fi
+
+      - name: Import HWT101 recovered hardware layer
+        run: |
+          set -e
+          chmod +x scripts/*.sh scripts/*.py
+          bash scripts/import_huawei_v3.sh kernel huawei-k3-reference DONOR-HARDWARE-INVENTORY-V346.txt
+          python3 scripts/prepare_missing_hwt101_drivers.py kernel huawei-k3-reference oem_recovered | tee PREPARE-HARDWARE-V346.txt
+          python3 scripts/resolve_hiusb_providers.py kernel huawei-k3-reference
+          python3 scripts/inventory_board.py kernel BOARD-I2C-INVENTORY-PRE-V346.txt
+
+      - name: Patch old Perl syntax
+        working-directory: kernel
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/timeconst.pl
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/timeconst.pl
+
+      - name: Configure exact S10 OEM1 base
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm
+          export SUBARCH=arm
+          export CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+
+      - name: Apply recovered HWT101 hardware parity
+        run: |
+          set -e
+          bash scripts/apply_hwt101_v3.sh kernel
+          python3 scripts/port_goodix_hwt101.py kernel
+          python3 scripts/port_gc0339_hwt101.py kernel
+          python3 scripts/fix_hwt101_final_link.py kernel huawei-k3-reference
+          python3 scripts/enable_link_provider_configs.py kernel huawei-k3-reference
+
+      - name: Force FIX10 memory baseline - NO SWAP NO ZRAM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('kernel/.config')
+          s=p.read_text()
+          def n(name):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += '# CONFIG_'+name+' is not set\n'
+          def val(name,value):
+              global s
+              s=re.sub(r'^CONFIG_'+re.escape(name)+r'=.*\n|^# CONFIG_'+re.escape(name)+r' is not set\n','',s,flags=re.M)
+              s += 'CONFIG_'+name+'='+value+'\n'
+          for x in ('SWAP','ZRAM','XVMALLOC','ZRAM_DEBUG'):
+              n(x)
+          val('PANIC_TIMEOUT','0')
+          s=re.sub(r'^CONFIG_LOCALVERSION=.*\n|^CONFIG_LOCALVERSION_AUTO=.*\n|^# CONFIG_LOCALVERSION_AUTO is not set\n','',s,flags=re.M)
+          s += 'CONFIG_LOCALVERSION="-g883717a-dirty"\n'
+          s += '# CONFIG_LOCALVERSION_AUTO is not set\n'
+          p.write_text(s)
+          PY
+          : > kernel/.scmversion
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make -C kernel LOCALVERSION= oldnoconfig
+          echo '===== V3.46 MEMORY BASELINE =====' | tee V346-MEMORY-CONFIG.txt
+          grep -E 'CONFIG_(SWAP|ZRAM|XVMALLOC|PANIC_TIMEOUT|STAGING|LZO_COMPRESS|LZO_DECOMPRESS)' kernel/.config | tee -a V346-MEMORY-CONFIG.txt || true
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx '# CONFIG_ZRAM is not set' kernel/.config
+          grep -qx '# CONFIG_XVMALLOC is not set' kernel/.config
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+
+      - name: Prove exact kernel release before build
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          KR="$(make -s LOCALVERSION= kernelrelease | tail -n 1 | tr -d '\r\n')"
+          echo "$KR" | tee ../KERNELRELEASE-V346.txt
+          test "$KR" = '3.0.8-g883717a-dirty'
+
+      - name: Build V3.46 parity zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TCBIN/arm-eabi-"
+          make LOCALVERSION= -j2 zImage V=0 2>&1 | tee ../BUILD-V346.log
+          test -s arch/arm/boot/zImage
+          wc -c arch/arm/boot/zImage | tee ../SIZE-zImage-V346.txt
+          sha256sum arch/arm/boot/zImage | tee ../SHA256-zImage-V346.txt
+
+      - name: FIX10 boot-parity audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          CFG=kernel/.config
+          : > V346-BOOT-SYMBOLS.txt
+          required=(
+            k3_fb_init
+            mipi_dsi_probe
+            mipi_toshiba_panel_init
+            hwt101_sn65_probe
+            goodix_ts_probe
+            gc0339_init
+            s5k5cag_init
+            bq2419x_charger_probe
+            init_yaffs_fs
+            yaffs2_mount
+          )
+          for sym in "${required[@]}"; do
+            c="$(grep -Ec " [tT] ${sym}$" "$MAP" || true)"
+            echo "$sym=$c" | tee -a V346-BOOT-SYMBOLS.txt
+            if [ "$c" -lt 1 ]; then
+              echo "MISSING REQUIRED HWT101 SYMBOL: $sym"
+              exit 91
+            fi
+          done
+
+          grep -E ' [rRdDtT] __mach_desc_K3V2OEM1$' "$MAP" | tee -a V346-BOOT-SYMBOLS.txt
+          grep -qx 'CONFIG_MACH_K3V2OEM1=y' "$CFG"
+          grep -qx 'CONFIG_MTD=y' "$CFG"
+          grep -qx 'CONFIG_MTD_BLOCK=y' "$CFG"
+          grep -qx 'CONFIG_YAFFS_FS=y' "$CFG"
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' "$CFG"
+
+          if grep -Eq ' [tT] (dhd_bus_start|btbcm_device|bcm_bluesleep_device)$' "$MAP"; then
+            echo 'FORBIDDEN BROADCOM PATH PRESENT'
+            exit 92
+          fi
+
+          strings kernel/vmlinux | grep -m 3 'Linux version 3.0.8' | tee V346-VERSION-STRINGS.txt || true
+
+          V346_SIZE="$(stat -c%s kernel/arch/arm/boot/zImage)"
+          {
+            echo 'HWT101 V3.46 FIX10 PARITY AUDIT'
+            echo '================================'
+            echo 'FIX10_BOOT_SHA256=070a1c19c2abb7a5d92cdc4094619c5322c7f83204adc5a334830c5a691979c9'
+            echo 'FIX10_KERNEL_SIZE=4124692'
+            echo "V346_KERNEL_SIZE=$V346_SIZE"
+            echo "SIZE_DELTA_FROM_FIX10=$((V346_SIZE-4124692))"
+            echo 'SWAP=DISABLED'
+            echo 'ZRAM=DISABLED'
+            echo 'XVMALLOC=DISABLED'
+            echo 'PANIC_TIMEOUT=0'
+            echo 'BASE=S10-101x+d0ea9345 + recovered FIX10 hardware layer'
+            echo 'TOOLCHAIN=Android Google arm-eabi-4.6'
+            echo 'AUDIT=PASS'
+          } | tee V346-AUDIT.txt
+
+      - name: Diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          echo '===== GCC ====='
+          cat GCC-V346.txt 2>/dev/null || true
+          echo '===== MEMORY CONFIG ====='
+          cat V346-MEMORY-CONFIG.txt 2>/dev/null || true
+          echo '===== AUDIT ====='
+          cat V346-AUDIT.txt 2>/dev/null || true
+          echo '===== BUILD ERRORS ====='
+          grep -nEi 'error:|fatal error:|undefined reference|multiple definition|No rule to make target|collect2:' BUILD-V346.log 2>/dev/null | tail -n 300 || true
+          echo '===== BUILD TAIL ====='
+          tail -n 180 BUILD-V346.log 2>/dev/null || true
+
+      - name: Upload V3.46 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.46-FIX10-PARITY-NOMEM
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: |
+            kernel/arch/arm/boot/zImage
+            kernel/System.map
+            kernel/vmlinux
+            kernel/.config
+            BUILD-V346.log
+            KERNELRELEASE-V346.txt
+            S10-HEAD-V346.txt
+            HUAWEI-DONOR-HEAD-V346.txt
+            GCC-V346.txt
+            GCC-FILE-V346.txt
+            GCC-MATCH-V346.txt
+            DONOR-HARDWARE-INVENTORY-V346.txt
+            PREPARE-HARDWARE-V346.txt
+            BOARD-I2C-INVENTORY-PRE-V346.txt
+            HWT101-MISSING-DRIVER-PARITY.txt
+            HWT101-FINAL-LINK-PATCH.txt
+            HWT101-GOODIX-PORT.txt
+            HWT101-GC0339-PORT.txt
+            LINK-PROVIDER-CONFIGS.txt
+            V346-MEMORY-CONFIG.txt
+            V346-BOOT-SYMBOLS.txt
+            V346-VERSION-STRINGS.txt
+            V346-AUDIT.txt
+            SIZE-zImage-V346.txt
+            SHA256-zImage-V346.txt
