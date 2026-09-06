@@ -19,10 +19,10 @@ if '#include <linux/wakelock.h>' not in s:
 # topology anyway, so make them inert before installing the recovered arrays.
 pat = re.compile(r'static struct i2c_board_info hisik3_i2c1_tp_devs\[\]\s*=\s*\{.*?\n\};\s*\n\s*static struct i2c_board_info hisik3_i2c2_tp_devs\[\]\s*=\s*\{.*?\n\};', re.S)
 rep = '''static struct i2c_board_info hisik3_i2c1_tp_devs[] = {
-    { .type = "hwt101-unused-i2c1-tp", .addr = 0x70 },
+    { .type = "unused1", .addr = 0x70 },
 };
 static struct i2c_board_info hisik3_i2c2_tp_devs[] = {
-    { .type = "hwt101-unused-i2c2-tp", .addr = 0x70 },
+    { .type = "unused2", .addr = 0x70 },
 };'''
 s, n = pat.subn(rep, s, count=1)
 if n != 1:
@@ -166,7 +166,8 @@ board_init = r'''static void __init k3v2oem1_init(void)
 }
 
 static void __init k3v2_early_init'''
-s, n = pat.subn(board_init, s, count=1)
+# Use a callable replacement so Python's re engine does not reinterpret C \n escapes.
+s, n = pat.subn(lambda _m: board_init, s, count=1)
 if n != 1:
     raise SystemExit('ERROR: board init not replaced')
 
