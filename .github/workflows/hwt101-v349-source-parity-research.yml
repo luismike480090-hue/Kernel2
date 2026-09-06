@@ -45,11 +45,22 @@ jobs:
 
       - name: Configure OEM1
         working-directory: kernel
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
           export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
           make mrproper
           make hisi_k3v2oem1_defconfig
+          # cm-10.1 snapshot has a stale defconfig option that selects an old
+          # Synaptics board-info block without its corresponding declarations.
+          # The T101 OEM binary does not use that Synaptics topology anyway
+          # (its bus2 is FT5X0X + Goodix), so neutralize only this stale option
+          # for source-distance measurement.
+          if [ '${{ matrix.ref }}' = 'cm-10.1' ]; then
+            sed -i '/^CONFIG_TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC=/d;/^# CONFIG_TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC is not set/d' .config
+            echo '# CONFIG_TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC is not set' >> .config
+            make oldnoconfig
+          fi
           cp .config ../CONFIG-${{ matrix.ref }}.txt
 
       - name: Compile board objects only
