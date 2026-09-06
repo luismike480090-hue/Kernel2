@@ -1,0 +1,104 @@
+name: HWT101 V3.49 OEM Source Parity Research
+
+on:
+  push:
+    branches: [ v349-oem-parity-research ]
+    paths:
+      - '.github/workflows/hwt101-v349-source-parity-research.yml'
+  workflow_dispatch:
+
+jobs:
+  board-object-forensics:
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [cm-10.1, cm-11]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6
+
+      - name: Clone Huawei K3V2 OEM source
+        run: |
+          set -e
+          git clone --depth 1 -b '${{ matrix.ref }}' https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          git -C kernel rev-parse HEAD | tee SOURCE-SHA.txt
+          echo '${{ matrix.ref }}' | tee SOURCE-REF.txt
+
+      - name: Clone OEM-era GCC 4.6
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git gcc46
+          gcc46/bin/arm-eabi-gcc --version | tee GCC.txt
+          grep -qi '4.6.x-google' GCC.txt
+          echo "TC=$PWD/gcc46/bin/arm-eabi-" >> "$GITHUB_ENV"
+
+      - name: Patch old host Perl syntax
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/kernel/timeconst.pl || true
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/kernel/timeconst.pl || true
+
+      - name: Configure OEM1
+        working-directory: kernel
+        run: |
+          set -e
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+          cp .config ../CONFIG-${{ matrix.ref }}.txt
+
+      - name: Compile board objects only
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -j2 prepare scripts
+          make -j2 arch/arm/mach-k3v2/board-k3v2oem1.o V=0
+          "$TC"nm -S --size-sort arch/arm/mach-k3v2/board-k3v2oem1.o | tee ../NM-OEM1-${{ matrix.ref }}.txt
+          "$TC"objdump -dr arch/arm/mach-k3v2/board-k3v2oem1.o > ../OBJDUMP-OEM1-${{ matrix.ref }}.txt
+          grep -E '[[:space:]]k3v2oem1_init$' ../NM-OEM1-${{ matrix.ref }}.txt | tee ../INIT-SIZE-${{ matrix.ref }}.txt
+          if grep -q 'board-k3v2oem2.o' arch/arm/mach-k3v2/Makefile; then
+            make -j2 arch/arm/mach-k3v2/board-k3v2oem2.o V=0 || true
+            if [ -s arch/arm/mach-k3v2/board-k3v2oem2.o ]; then
+              "$TC"nm -S --size-sort arch/arm/mach-k3v2/board-k3v2oem2.o | tee ../NM-OEM2-${{ matrix.ref }}.txt
+              "$TC"objdump -dr arch/arm/mach-k3v2/board-k3v2oem2.o > ../OBJDUMP-OEM2-${{ matrix.ref }}.txt
+            fi
+          fi
+
+      - name: Extract source topology markers
+        run: |
+          set -e
+          {
+            echo '=== panel choices ==='
+            grep -nE 'PLATFORM_DEVICE_LCD_NAME|TOSHIBA_MDW70|PANASONIC_VVX10F002A00' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c || true
+            echo '=== T101-related devices ==='
+            grep -nE 'bq2419x|bq_bci_battery|sn65dsi83|ft5x0x|Goodix|wl18xx_device|btwilink_device|k3v2oem1_public_dev' kernel/arch/arm/mach-k3v2/board-k3v2oem1.c || true
+            echo '=== CONFIG memory ==='
+            grep -E 'CONFIG_(SWAP|ZRAM|XVMALLOC)' kernel/.config || true
+          } | tee TOPOLOGY-${{ matrix.ref }}.txt
+
+      - name: Upload forensic objects
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V349-SOURCE-PARITY-${{ matrix.ref }}
+          include-hidden-files: true
+          path: |
+            SOURCE-SHA.txt
+            SOURCE-REF.txt
+            GCC.txt
+            CONFIG-${{ matrix.ref }}.txt
+            NM-OEM1-${{ matrix.ref }}.txt
+            OBJDUMP-OEM1-${{ matrix.ref }}.txt
+            INIT-SIZE-${{ matrix.ref }}.txt
+            NM-OEM2-${{ matrix.ref }}.txt
+            OBJDUMP-OEM2-${{ matrix.ref }}.txt
+            TOPOLOGY-${{ matrix.ref }}.txt
+            kernel/arch/arm/mach-k3v2/board-k3v2oem1.o
+            kernel/arch/arm/mach-k3v2/board-k3v2oem2.o
