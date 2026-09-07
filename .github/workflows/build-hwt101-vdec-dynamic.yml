@@ -1,0 +1,89 @@
+name: Build HWT101 VDEC dynamic module
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'hwt101_vdec_dynamic/**'
+      - '.github/workflows/build-hwt101-vdec-dynamic.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+      - name: Install basic build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git make bc bison flex libssl-dev libc6-i386 file
+      - name: Clone Huawei K3V2 kernel
+        run: git clone --depth 1 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+      - name: Clone Android ARM-EABI GCC 4.6
+        run: |
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git toolchain
+          chmod -R +x toolchain/bin || true
+          toolchain/bin/arm-eabi-gcc --version
+      - name: Configure exact HWT101 kernel release
+        shell: bash
+        run: |
+          set -e
+          cd kernel
+          make ARCH=arm CROSS_COMPILE="$GITHUB_WORKSPACE/toolchain/bin/arm-eabi-" hisi_k3v2oem1_defconfig
+          if grep -q '^CONFIG_LOCALVERSION=' .config; then
+            sed -i 's/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-g883717a-dirty"/' .config
+          else
+            echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          fi
+          if grep -q '^CONFIG_LOCALVERSION_AUTO=' .config; then
+            sed -i 's/^CONFIG_LOCALVERSION_AUTO=.*/# CONFIG_LOCALVERSION_AUTO is not set/' .config
+          elif ! grep -q '^# CONFIG_LOCALVERSION_AUTO is not set' .config; then
+            echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          fi
+          cp scripts/setlocalversion scripts/setlocalversion.original
+          cat > scripts/setlocalversion <<'EOF'
+          #!/bin/sh
+          echo ""
+          EOF
+          chmod +x scripts/setlocalversion
+          yes "" | make ARCH=arm CROSS_COMPILE="$GITHUB_WORKSPACE/toolchain/bin/arm-eabi-" oldconfig || true
+      - name: Prepare kernel tree
+        shell: bash
+        run: |
+          set -e
+          cd kernel
+          make ARCH=arm CROSS_COMPILE="$GITHUB_WORKSPACE/toolchain/bin/arm-eabi-" prepare
+          make ARCH=arm CROSS_COMPILE="$GITHUB_WORKSPACE/toolchain/bin/arm-eabi-" modules_prepare
+          grep -F '"3.0.8-g883717a-dirty"' include/generated/utsrelease.h
+      - name: Build dynamic VDEC module
+        shell: bash
+        run: |
+          set -e
+          make -C kernel ARCH=arm CROSS_COMPILE="$GITHUB_WORKSPACE/toolchain/bin/arm-eabi-" M="$GITHUB_WORKSPACE/hwt101_vdec_dynamic/module" modules
+      - name: Inspect module
+        shell: bash
+        run: |
+          set -e
+          KO="$GITHUB_WORKSPACE/hwt101_vdec_dynamic/module/hwt101_vdec_dynamic.ko"
+          file "$KO"
+          strings "$KO" | grep '^vermagic=' | tee /tmp/vermagic.txt
+          grep -F 'vermagic=3.0.8-g883717a-dirty SMP preempt mod_unload ARMv7 p2v8' /tmp/vermagic.txt
+          strings "$KO" | grep 'HWT101-VDEC-DYN'
+          "$GITHUB_WORKSPACE/toolchain/bin/arm-eabi-nm" -u "$KO" | grep -E 'clk_(get|put|get_rate|round_rate|set_rate)|create_proc_entry|remove_proc_entry' || true
+      - name: Package output
+        shell: bash
+        run: |
+          set -e
+          mkdir -p output
+          cp hwt101_vdec_dynamic/module/hwt101_vdec_dynamic.ko output/
+          strings hwt101_vdec_dynamic/module/hwt101_vdec_dynamic.ko | grep '^vermagic=' > output/VERMAGIC.txt
+          sha256sum hwt101_vdec_dynamic/module/hwt101_vdec_dynamic.ko > output/SHA256.txt
+          printf '%s\n' 'Allowed VDEC rates: 180 240 288 360 480 MHz' 'Control: echo 360 > /proc/hwt101_vdec' 'Read: cat /proc/hwt101_vdec' 'No BOOT/SYSTEM changes.' > output/README.txt
+      - name: Upload module
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-VDEC-DYNAMIC-TEMP
+          path: output/
+          if-no-files-found: error
