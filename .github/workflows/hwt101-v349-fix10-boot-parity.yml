@@ -72,6 +72,13 @@ jobs:
           set_n TOUCH_INPUT_SYNAPTICS_RMI4
           set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
 
+          # FIX10 runtime exposes xmm_power + mu739_power, not balong_power.
+          # Keep the genuine XMM/MU739 paths; remove the incompatible donor Balong path.
+          set_y XMM_POWER
+          set_y XMM_RMNET
+          set_n BALONG_POWER
+          set_n BALONG_RMNET
+
           # Deliberate experimental control: V3.49 tests BOOT PARITY only.
           set_n SWAP
           set_n ZRAM
@@ -86,6 +93,8 @@ jobs:
           cp .config ../V349-CONFIG.txt
 
           grep -q '^CONFIG_LCD_TOSHIBA_MDW70=y$' .config
+          grep -q '^CONFIG_XMM_POWER=y$' .config
+          grep -q '^# CONFIG_BALONG_POWER is not set$' .config
           grep -q '^# CONFIG_SWAP is not set$' .config
           grep -q '^# CONFIG_ZRAM is not set$' .config || true
 
