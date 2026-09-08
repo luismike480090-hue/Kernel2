@@ -1,0 +1,210 @@
+name: HWT101 V3.49 FIX10 NAND Parity Fix
+
+on:
+  push:
+    branches: [ v349-nand-parity-fix ]
+    paths:
+      - '.github/workflows/hwt101-v349-nand-parity-fix.yml'
+      - 'scripts/patch_hwt101_hinand_fix10_v348.py'
+      - 'scripts/add_hwt101_hinand_v340.py'
+      - 'scripts/reconstruct_t101_board_cm10.py'
+      - 'oem_recovered/display/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout V3.49 NAND parity branch
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Clone exact V3.49 Huawei K3V2 source
+        run: |
+          set -e
+          git clone --depth 1 -b cm-10.1 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          git -C kernel rev-parse HEAD | tee V349N-SOURCE-SHA.txt
+          test "$(git -C kernel rev-parse HEAD)" = "08fd9448a6bfc6923a5caa9da8260d3be930686c"
+
+      - name: Clone exact OEM-era GCC 4.6 family
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git gcc46
+          gcc46/bin/arm-eabi-gcc --version | tee V349N-GCC.txt
+          grep -qi '4.6.x-google 20120106' V349N-GCC.txt
+          echo "TC=$PWD/gcc46/bin/arm-eabi-" >> "$GITHUB_ENV"
+
+      - name: Patch host compatibility
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/kernel/timeconst.pl || true
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/kernel/timeconst.pl || true
+
+      - name: Configure exact V3.49 parity plus FIX10 storage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+          set_v(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=$2" >> .config; }
+
+          set_y LCD_TOSHIBA_MDW70
+          for x in LCD_PANASONIC_VVX10F002A00 LCD_CMI_OTM1280A LCD_SAMSUNG_LMS350DF04 LCD_SAMSUNG_S6E39A LCD_SHARP_LS035B3SX LCD_CMI_PT045TN07 LCD_JDI_OTM1282B LCD_TOSHIBA_MDY90 LCD_K3_FAKE; do set_n "$x"; done
+          set_y FB_K3
+          set_y FB_K3_CLCD
+          set_y I2C
+          set_y REGULATOR
+          set_y HAS_EARLYSUSPEND
+          set_y EARLYSUSPEND
+          set_y LEDS_K3_6421
+          set_y ANDROID_K3_VIBRATOR
+
+          set_n TOUCH_INPUT_SYNAPTICS_RMI4
+          set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
+          set_n SYNAPTICS_TOUCH_KEY
+          set_n SRECORDER
+
+          set_y XMM_POWER
+          set_y XMM_RMNET
+          set_n BALONG_POWER
+          set_n BALONG_RMNET
+          set_n MHL_SII8240
+          set_n MHL_SII9244
+
+          # FIX10 physical storage: required for /system, /cache, /cust and /data.
+          for x in MTD MTD_BLOCK MTD_PARTITIONS MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS MISC_FILESYSTEMS YAFFS_FS YAFFS_YAFFS2; do set_y "$x"; done
+
+          # Boot-parity only. No memory experiment yet.
+          set_n SWAP
+          set_n ZRAM
+          set_n XVMALLOC
+          set_n ZRAM_DEBUG
+          # Diagnostic hold: a remaining panic must freeze instead of bootlooping.
+          set_v PANIC_TIMEOUT 0
+
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make oldnoconfig
+
+          for x in MTD MTD_BLOCK MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS YAFFS_FS YAFFS_YAFFS2; do grep -qx "CONFIG_${x}=y" .config; done
+          grep -qx '# CONFIG_SWAP is not set' .config
+          grep -qx '# CONFIG_ZRAM is not set' .config || true
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' .config
+          cp .config ../V349N-CONFIG.txt
+
+      - name: Reconstruct exact T101 board from FIX10
+        run: |
+          set -e
+          python3 scripts/reconstruct_t101_board_cm10.py kernel | tee V349N-BOARD-PATCH.txt
+          grep -q 'platform=21, i2c=1/10/2' V349N-BOARD-PATCH.txt
+
+      - name: Install reconstructed SN65DSI83 bridge
+        run: |
+          set -e
+          cp oem_recovered/display/sn65dsi83_hwt101.c kernel/drivers/video/k3/sn65dsi83_hwt101.c
+          cp oem_recovered/display/sn65dsi83_oem_table.h kernel/drivers/video/k3/sn65dsi83_oem_table.h
+          grep -q 'sn65dsi83_hwt101.o' kernel/drivers/video/k3/Makefile || echo 'obj-y += sn65dsi83_hwt101.o' >> kernel/drivers/video/k3/Makefile
+
+      - name: Install exact FIX10 HINAND parity reconstruction
+        run: |
+          set -e
+          python3 scripts/patch_hwt101_hinand_fix10_v348.py kernel | tee V349N-NAND-PATCH.txt
+          grep -q 'K3V2_NAND_EN_REG3' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'status & 0x201' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'nfc_write(h, 0x7ff, NFC_INTCLR)' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'wait_for_completion_timeout(&h->done, 0x2710)' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'HWT_NFC_IRQ        46' kernel/drivers/mtd/nand/hinand_hwt101.c
+
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -C kernel oldnoconfig
+          cp kernel/.config V349N-CONFIG.txt
+          for x in MTD MTD_BLOCK MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS YAFFS_FS YAFFS_YAFFS2; do grep -qx "CONFIG_${x}=y" kernel/.config; done
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+
+      - name: Source topology and NAND hard gate
+        run: |
+          set -euo pipefail
+          B=kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          for s in 'mipi_toshiba_MDW70_V001' 'sn65dsi83' 'bq2419x_charger' 'audience_es305' 'atmel_mxt224e' 'mhl_Sii9244_page0' 'mhl_Sii9244_page1' 'mhl_Sii9244_page2' 'mhl_Sii9244_cbus' 'ft5x0x_ts' 'Goodix-TS' 'bq_bci_battery' 'kim' 'bluesleep' 'btwilink'; do grep -q "$s" "$B"; done
+          grep -q 'en_gpio = 79' "$B"
+          test -s kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'obj-y += hinand_hwt101.o' kernel/drivers/mtd/nand/Makefile
+
+      - name: Build V3.49 NAND parity zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -j2 zImage 2>&1 | tee ../V349N-BUILD.log
+          cp arch/arm/boot/zImage ../HWT101-V3.49-FIX10-NAND-PARITY-zImage
+          cp vmlinux ../HWT101-V3.49-NAND-vmlinux
+          cp System.map ../HWT101-V3.49-NAND-System.map
+          sha256sum arch/arm/boot/zImage | tee ../V349N-SHA256.txt
+          stat -c%s arch/arm/boot/zImage | tee ../V349N-SIZE.txt
+
+      - name: Final FIX10 NAND and topology audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          VM=kernel/vmlinux
+          CFG=kernel/.config
+          {
+            echo '=== V3.49 FIX10 NAND PARITY FINAL AUDIT ==='
+            for sym in nand_base_init nand_scan nand_release hinand_module_init hinand_probe hinand_irq hinand_init init_yaffs_fs yaffs2_mount k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init sn65dsi83_probe; do
+              grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+              echo "OK_SYMBOL=$sym"
+            done
+            grep -aFq 'hisi_nand' "$VM" || { echo 'MISSING_STRING=hisi_nand'; exit 92; }
+            echo 'OK_STRING=hisi_nand'
+            for s in 'mipi_toshiba_MDW70_V001' 'sn65dsi83' 'bq2419x_charger' 'ft5x0x_ts' 'Goodix-TS' 'bq_bci_battery' 'kim' 'bluesleep' 'btwilink'; do grep -aFq "$s" "$VM" || exit 93; done
+            for x in MTD MTD_BLOCK MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS YAFFS_FS YAFFS_YAFFS2; do grep -qx "CONFIG_${x}=y" "$CFG" || exit 94; done
+            NI=$(awk '$3=="sys_ni_syscall"{print $1; exit}' "$MAP")
+            ON=$(awk '$3=="sys_swapon"{print $1; exit}' "$MAP")
+            OFF=$(awk '$3=="sys_swapoff"{print $1; exit}' "$MAP")
+            echo "sys_ni_syscall=$NI"
+            echo "sys_swapon=$ON"
+            echo "sys_swapoff=$OFF"
+            test -n "$NI" && test "$NI" = "$ON" && test "$NI" = "$OFF"
+            grep -qx 'CONFIG_PANIC_TIMEOUT=0' "$CFG"
+            echo 'NAND_PARITY=PASS'
+            echo 'SWAP_CONTROL=PASS'
+            echo 'PANIC_TIMEOUT=0'
+          } | tee V349N-FINAL-AUDIT.txt
+
+      - name: Upload V3.49 NAND parity artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.49-FIX10-NAND-PARITY
+          include-hidden-files: true
+          path: |
+            HWT101-V3.49-FIX10-NAND-PARITY-zImage
+            HWT101-V3.49-NAND-vmlinux
+            HWT101-V3.49-NAND-System.map
+            V349N-CONFIG.txt
+            V349N-SOURCE-SHA.txt
+            V349N-GCC.txt
+            V349N-BOARD-PATCH.txt
+            V349N-NAND-PATCH.txt
+            V349N-BUILD.log
+            V349N-SHA256.txt
+            V349N-SIZE.txt
+            V349N-FINAL-AUDIT.txt
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
