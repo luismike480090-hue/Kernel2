@@ -1,5 +1,5 @@
 name: HWT101 V3.49 FIX10 Boot Parity
-# Retrigger after SII8240 donor-path removal; boot-parity only.
+# Retrigger after OEM MHL parity correction; boot-parity only.
 
 on:
   push:
@@ -80,10 +80,11 @@ jobs:
           set_n BALONG_POWER
           set_n BALONG_RMNET
 
-          # FIX10 I2C topology contains Silicon Image SII9244 page0/page1/page2/cbus.
-          # The cm-10.1 default SII8240 path is donor-only and depends on incompatible USB switch APIs.
+          # FIX10 registers Sii9244 page0/page1/page2/cbus I2C clients in the board,
+          # but recovered OEM kallsyms/strings contain no built-in SII8240/SII9244 driver.
+          # Preserve board topology while matching the OEM binary driver state.
           set_n MHL_SII8240
-          set_y MHL_SII9244
+          set_n MHL_SII9244
 
           # Deliberate experimental control: V3.49 tests BOOT PARITY only.
           set_n SWAP
@@ -102,7 +103,7 @@ jobs:
           grep -q '^CONFIG_XMM_POWER=y$' .config
           grep -q '^# CONFIG_BALONG_POWER is not set$' .config
           grep -q '^# CONFIG_MHL_SII8240 is not set$' .config
-          grep -q '^CONFIG_MHL_SII9244=y$' .config
+          grep -q '^# CONFIG_MHL_SII9244 is not set$' .config
           grep -q '^# CONFIG_SWAP is not set$' .config
           grep -q '^# CONFIG_ZRAM is not set$' .config || true
 
