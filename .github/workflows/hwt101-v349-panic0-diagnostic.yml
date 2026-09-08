@@ -1,0 +1,149 @@
+name: HWT101 V3.49 PANIC0 Diagnostic
+
+on:
+  push:
+    branches: [ v349-panic0-diagnostic ]
+    paths:
+      - '.github/workflows/hwt101-v349-panic0-diagnostic.yml'
+      - 'scripts/reconstruct_t101_board_cm10.py'
+      - 'oem_recovered/display/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Clone exact V3.49 donor and GCC
+        run: |
+          set -e
+          git clone --depth 1 -b cm-10.1 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          test "$(git -C kernel rev-parse HEAD)" = "08fd9448a6bfc6923a5caa9da8260d3be930686c"
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git gcc46
+          gcc46/bin/arm-eabi-gcc --version | tee V349-PANIC0-GCC.txt
+          grep -qi '4.6.x-google 20120106' V349-PANIC0-GCC.txt
+          echo "TC=$PWD/gcc46/bin/arm-eabi-" >> "$GITHUB_ENV"
+
+      - name: Patch host compatibility
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/kernel/timeconst.pl || true
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/kernel/timeconst.pl || true
+
+      - name: Configure exact V3.49 parity plus PANIC0
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+
+          set_y LCD_TOSHIBA_MDW70
+          for x in LCD_PANASONIC_VVX10F002A00 LCD_CMI_OTM1280A LCD_SAMSUNG_LMS350DF04 LCD_SAMSUNG_S6E39A LCD_SHARP_LS035B3SX LCD_CMI_PT045TN07 LCD_JDI_OTM1282B LCD_TOSHIBA_MDY90 LCD_K3_FAKE; do set_n "$x"; done
+          set_y FB_K3
+          set_y FB_K3_CLCD
+          set_y I2C
+          set_y REGULATOR
+          set_y HAS_EARLYSUSPEND
+          set_y EARLYSUSPEND
+          set_y LEDS_K3_6421
+          set_y ANDROID_K3_VIBRATOR
+
+          set_n TOUCH_INPUT_SYNAPTICS_RMI4
+          set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
+          set_n SYNAPTICS_TOUCH_KEY
+          set_n SRECORDER
+
+          set_y XMM_POWER
+          set_y XMM_RMNET
+          set_n BALONG_POWER
+          set_n BALONG_RMNET
+
+          set_n MHL_SII8240
+          set_n MHL_SII9244
+
+          set_n SWAP
+          set_n ZRAM
+          set_n XVMALLOC
+          set_n ZRAM_DEBUG
+
+          sed -i '/^CONFIG_PANIC_TIMEOUT=/d' .config
+          echo 'CONFIG_PANIC_TIMEOUT=0' >> .config
+
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make oldnoconfig
+          cp .config ../V349-PANIC0-CONFIG.txt
+
+          grep -q '^CONFIG_PANIC_TIMEOUT=0$' .config
+          grep -q '^# CONFIG_SWAP is not set$' .config
+          grep -q '^# CONFIG_MHL_SII8240 is not set$' .config
+          grep -q '^# CONFIG_MHL_SII9244 is not set$' .config
+          grep -q '^# CONFIG_SYNAPTICS_TOUCH_KEY is not set$' .config
+          grep -q '^# CONFIG_SRECORDER is not set$' .config
+
+      - name: Reconstruct exact T101 board
+        run: |
+          set -e
+          python3 scripts/reconstruct_t101_board_cm10.py kernel | tee V349-PANIC0-BOARD-PATCH.txt
+          grep -q 'platform=21, i2c=1/10/2' V349-PANIC0-BOARD-PATCH.txt
+
+      - name: Install reconstructed SN65DSI83 bridge
+        run: |
+          set -e
+          cp oem_recovered/display/sn65dsi83_hwt101.c kernel/drivers/video/k3/sn65dsi83_hwt101.c
+          cp oem_recovered/display/sn65dsi83_oem_table.h kernel/drivers/video/k3/sn65dsi83_oem_table.h
+          grep -q 'sn65dsi83_hwt101.o' kernel/drivers/video/k3/Makefile || echo 'obj-y += sn65dsi83_hwt101.o' >> kernel/drivers/video/k3/Makefile
+
+      - name: Build PANIC0 diagnostic zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -j2 zImage 2>&1 | tee ../V349-PANIC0-BUILD.log
+          cp arch/arm/boot/zImage ../HWT101-V3.49-PANIC0-DIAGNOSTIC-zImage
+          cp vmlinux ../HWT101-V3.49-PANIC0-vmlinux
+          cp System.map ../HWT101-V3.49-PANIC0-System.map
+          sha256sum arch/arm/boot/zImage | tee ../V349-PANIC0-SHA256.txt
+          ls -l arch/arm/boot/zImage | tee ../V349-PANIC0-SIZE.txt
+
+      - name: Audit diagnostic delta
+        run: |
+          set -euo pipefail
+          grep -q '^CONFIG_PANIC_TIMEOUT=0$' V349-PANIC0-CONFIG.txt
+          grep -q '^# CONFIG_SWAP is not set$' V349-PANIC0-CONFIG.txt
+          echo 'PANIC0_DIAGNOSTIC=PASS' | tee V349-PANIC0-AUDIT.txt
+
+      - name: Upload PANIC0 artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.49-PANIC0-DIAGNOSTIC
+          include-hidden-files: true
+          path: |
+            HWT101-V3.49-PANIC0-DIAGNOSTIC-zImage
+            HWT101-V3.49-PANIC0-vmlinux
+            HWT101-V3.49-PANIC0-System.map
+            V349-PANIC0-CONFIG.txt
+            V349-PANIC0-GCC.txt
+            V349-PANIC0-BOARD-PATCH.txt
+            V349-PANIC0-BUILD.log
+            V349-PANIC0-SHA256.txt
+            V349-PANIC0-SIZE.txt
+            V349-PANIC0-AUDIT.txt
