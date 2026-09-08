@@ -152,8 +152,33 @@ for opt in ('MTD','MTD_BLOCK','MTD_PARTITIONS','MTD_CMDLINE_PARTS','MTD_NAND','M
     set_y(opt)
 cfg.write_text(cs)
 
-print('V3.48 FIX10 NAND parity patch installed')
+# cm-10.1 carries an older YAFFS VFS glue that targets the pre-3.0 BKL/get_sb API.
+# FIX10 needs YAFFS, so port only that VFS registration glue; NAND/YAFFS data logic stays intact.
+y = K / 'fs/yaffs2/yaffs_vfs.c'
+ys = y.read_text()
+ys = re.sub(r'^\s*#include\s*<linux/smp_lock\.h>\s*\n', '', ys, flags=re.M)
+if re.search(r'\b(lock_kernel|unlock_kernel)\b', ys):
+    raise SystemExit('YAFFS still uses Big Kernel Lock calls')
+ys = re.sub(
+    r'static int yaffs_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name,\s*void \*data, struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs_internal_read_super_mtd, mnt\);\s*\}',
+    'static struct dentry *yaffs_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data,\\n\\t\\t\\t  yaffs_internal_read_super_mtd);\\n}',
+    ys, flags=re.S)
+ys = re.sub(
+    r'static int yaffs2_read_super\(struct file_system_type \*fs,\s*int flags, const char \*dev_name, void \*data,\s*struct vfsmount \*mnt\)\s*\{\s*return get_sb_bdev\(fs, flags, dev_name, data,\s*yaffs2_internal_read_super_mtd, mnt\);\s*\}',
+    'static struct dentry *yaffs2_mount(struct file_system_type *fs,\\n\\t\\t\\t\\t  int flags, const char *dev_name, void *data)\\n{\\n\\treturn mount_bdev(fs, flags, dev_name, data,\\n\\t\\t\\t  yaffs2_internal_read_super_mtd);\\n}',
+    ys, flags=re.S)
+ys = ys.replace('.get_sb = yaffs_read_super,', '.mount = yaffs_mount,')
+ys = ys.replace('.get_sb = yaffs2_read_super,', '.mount = yaffs2_mount,')
+y.write_text(ys)
+check = y.read_text()
+if 'linux/smp_lock.h' in check or 'get_sb_bdev' in check or '.get_sb =' in check:
+    raise SystemExit('YAFFS legacy VFS API survived compatibility patch')
+if 'mount_bdev(fs, flags, dev_name, data' not in check:
+    raise SystemExit('YAFFS mount_bdev compatibility patch missing')
+
+print('V3.49 FIX10 NAND parity patch installed')
 print('  clock/reset: exact FIX10 register sequence')
 print('  IRQ mask/clear: exact 0x201 / 0x7ff behavior')
 print('  wait_int/wait_status: exact 0x2710 limits')
 print('  NAND core + IDs + cmdline partitions: enabled')
+print('  YAFFS VFS: Linux 3.0 mount API compatibility applied')
