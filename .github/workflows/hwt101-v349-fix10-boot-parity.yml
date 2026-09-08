@@ -1,4 +1,5 @@
 name: HWT101 V3.49 FIX10 Boot Parity
+# Retrigger after Balong donor path removal; boot-parity only.
 
 on:
   push:
