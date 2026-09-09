@@ -73,6 +73,15 @@ set_n('ANDROID_RAM_CONSOLE_ERROR_CORRECTION')
 set_n('ANDROID_RAM_CONSOLE_EARLY_INIT')
 cfg.write_text(c)
 
+# Force initcall_debug internally.  This preserves the FIX10 boot-header cmdline
+# while logging every initcall entry/return to the RAM console.
+main = K/'init/main.c'
+t = main.read_text()
+if 'static bool initcall_debug;' not in t:
+    raise SystemExit('initcall_debug anchor missing')
+t = t.replace('static bool initcall_debug;', 'static bool initcall_debug = true; /* HWT101 V3.51 RAMDIAG */', 1)
+main.write_text(t)
+
 # Add high-signal checkpoints to the reconstructed HINAND path without changing
 # register programming, IRQ logic, DMA logic, or NAND commands.
 p = K/'drivers/mtd/nand/hinand_hwt101.c'
@@ -116,4 +125,5 @@ print('RAMDIAG_START=0x%08x' % RAMDIAG_START)
 print('RAMDIAG_END=0x%08x' % RAMDIAG_END)
 print('RAMDIAG_SIZE=0x%08x' % RAMDIAG_SIZE)
 print('ANDROID_RAM_CONSOLE=y verbose; persistent raw ring signature DBGC')
+print('INITCALL_DEBUG=FORCED_ON inside kernel; FIX10 boot cmdline unchanged')
 print('HINAND logic unchanged; diagnostic printk checkpoints only')
