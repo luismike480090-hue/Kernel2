@@ -1,0 +1,245 @@
+name: HWT101 V3.50 FIX10 Golden Parity
+
+on:
+  push:
+    branches: [ v350-fix10-golden-parity ]
+    paths:
+      - '.github/workflows/hwt101-v350-fix10-golden-parity.yml'
+      - 'scripts/patch_hwt101_v350_golden.py'
+      - 'scripts/patch_hwt101_yaffs_v350.py'
+      - 'scripts/add_hwt101_hinand_v340.py'
+      - 'scripts/reconstruct_t101_board_cm10.py'
+      - 'oem_recovered/display/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout V3.50 golden branch
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Clone exact K3V2 source
+        run: |
+          set -e
+          git clone --depth 1 -b cm-10.1 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          git -C kernel rev-parse HEAD | tee V350-SOURCE-SHA.txt
+          test "$(git -C kernel rev-parse HEAD)" = "08fd9448a6bfc6923a5caa9da8260d3be930686c"
+
+      - name: Clone OEM-era GCC 4.6
+        run: |
+          set -e
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git gcc46
+          gcc46/bin/arm-eabi-gcc --version | tee V350-GCC.txt
+          grep -qi '4.6.x-google 20120106' V350-GCC.txt
+          echo "TC=$PWD/gcc46/bin/arm-eabi-" >> "$GITHUB_ENV"
+
+      - name: Patch host compatibility
+        run: |
+          set -e
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/kernel/timeconst.pl || true
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/kernel/timeconst.pl || true
+
+      - name: Configure FIX10 golden baseline
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+          set_v(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=$2" >> .config; }
+
+          set_y LCD_TOSHIBA_MDW70
+          for x in LCD_PANASONIC_VVX10F002A00 LCD_CMI_OTM1280A LCD_SAMSUNG_LMS350DF04 LCD_SAMSUNG_S6E39A LCD_SHARP_LS035B3SX LCD_CMI_PT045TN07 LCD_JDI_OTM1282B LCD_TOSHIBA_MDY90 LCD_K3_FAKE; do set_n "$x"; done
+          for x in FB_K3 FB_K3_CLCD I2C REGULATOR HAS_EARLYSUSPEND EARLYSUSPEND LEDS_K3_6421 ANDROID_K3_VIBRATOR; do set_y "$x"; done
+
+          set_n TOUCH_INPUT_SYNAPTICS_RMI4
+          set_n TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC
+          set_n SYNAPTICS_TOUCH_KEY
+          set_n SRECORDER
+
+          set_y XMM_POWER
+          set_y XMM_RMNET
+          set_n BALONG_POWER
+          set_n BALONG_RMNET
+          set_n MHL_SII8240
+          set_n MHL_SII9244
+
+          # Storage seen working in FIX10 recovery.
+          for x in MTD MTD_CHAR MTD_BLOCK MTD_PARTITIONS MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS MISC_FILESYSTEMS YAFFS_FS YAFFS_YAFFS2; do set_y "$x"; done
+
+          # Control: no memory experiment until physical boot parity passes.
+          for x in SWAP ZRAM XVMALLOC ZRAM_DEBUG; do set_n "$x"; done
+          set_v PANIC_TIMEOUT 0
+
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make oldnoconfig
+          cp .config ../V350-CONFIG.txt
+
+          for x in MTD MTD_CHAR MTD_BLOCK MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS YAFFS_FS YAFFS_YAFFS2; do grep -qx "CONFIG_${x}=y" .config; done
+          grep -qx '# CONFIG_SWAP is not set' .config
+          grep -qx '# CONFIG_ZRAM is not set' .config || true
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' .config
+
+      - name: Reconstruct exact T101 board
+        run: |
+          set -e
+          python3 scripts/reconstruct_t101_board_cm10.py kernel | tee V350-BOARD-PATCH.txt
+          grep -q 'platform=21, i2c=1/10/2' V350-BOARD-PATCH.txt
+
+      - name: Install FIX10 SN65 bridge source
+        run: |
+          set -e
+          cp oem_recovered/display/sn65dsi83_hwt101.c kernel/drivers/video/k3/sn65dsi83_hwt101.c
+          cp oem_recovered/display/sn65dsi83_oem_table.h kernel/drivers/video/k3/sn65dsi83_oem_table.h
+
+      - name: Apply V3.50 FIX10 golden hardware patch
+        run: |
+          set -e
+          python3 scripts/patch_hwt101_v350_golden.py kernel | tee V350-GOLDEN-PATCH.txt
+          python3 scripts/patch_hwt101_yaffs_v350.py kernel | tee V350-YAFFS-PATCH.txt
+
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -C kernel oldnoconfig
+          cp kernel/.config V350-CONFIG.txt
+
+      - name: Golden source hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          N=kernel/drivers/mtd/nand/hinand_hwt101.c
+          M=kernel/drivers/video/k3/Makefile
+          B=kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+
+          grep -q '#define HWT_NFC_BASE       0xfd100000' "$N"
+          grep -q '#define HWT_NFC_END        0xfd1007ff' "$N"
+          grep -q '#define HWT_NFC_AUX_BASE   0xfd200000' "$N"
+          grep -q '#define HWT_NFC_AUX_END    0xfd2000af' "$N"
+          grep -q '#define HWT_NFC_IRQ        46' "$N"
+          grep -q 'status & 0x201' "$N"
+          grep -q 'nfc_write(h, 0x7ff, NFC_INTCLR)' "$N"
+          grep -q 'wait_for_completion_timeout(&h->done, 0x2710)' "$N"
+          grep -q 'NAND_NO_AUTOINCR|NAND_NO_READRDY|NAND_BROKEN_XD' "$N"
+          grep -q 'nfc_write(h, 0xef, NFC_CMD)' "$N"
+          grep -q 'writeb(5, h->aux + 0)' "$N"
+          grep -q 'lby mode=%x' "$N"
+          ! grep -q 'reinit_completion' "$N"
+
+          grep -Fqx 'obj-y := sn65dsi83_hwt101.o' "$M"
+          grep -Fqx 'obj-$(CONFIG_FB_K3_CLCD) += k3fb.o' "$M"
+          ! grep -q 'mipi_toshiba_MDY90.o' "$M"
+
+          for s in 'mipi_toshiba_MDW70_V001' 'sn65dsi83' 'bq2419x_charger' 'audience_es305' 'atmel_mxt224e' 'mhl_Sii9244_page0' 'mhl_Sii9244_page1' 'mhl_Sii9244_page2' 'mhl_Sii9244_cbus' 'ft5x0x_ts' 'Goodix-TS' 'bq_bci_battery' 'kim' 'bluesleep' 'btwilink'; do grep -q "$s" "$B"; done
+          grep -q 'en_gpio = 79' "$B"
+
+          for x in MTD MTD_CHAR MTD_BLOCK MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS YAFFS_FS YAFFS_YAFFS2; do grep -qx "CONFIG_${x}=y" kernel/.config; done
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+
+          cp "$N" V350-HINAND-SOURCE.c
+          cp "$M" V350-K3-MAKEFILE.txt
+
+      - name: Build V3.50 zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -j2 zImage 2>&1 | tee ../V350-BUILD.log
+          cp arch/arm/boot/zImage ../HWT101-V3.50-FIX10-GOLDEN-zImage
+          cp vmlinux ../HWT101-V3.50-vmlinux
+          cp System.map ../HWT101-V3.50-System.map
+          "$TC"nm -n vmlinux > ../V350-NM-ORDERED.txt
+          sha256sum arch/arm/boot/zImage | tee ../V350-SHA256.txt
+          stat -c%s arch/arm/boot/zImage | tee ../V350-SIZE.txt
+
+      - name: FIX10 golden binary audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map
+          VM=kernel/vmlinux
+          CFG=kernel/.config
+
+          python3 - <<'PY' | tee V350-INITCALL-AUDIT.txt
+          from pathlib import Path
+          lines=Path('V350-NM-ORDERED.txt').read_text().splitlines()
+          names=[ln.split()[-1] for ln in lines if ln.split()]
+          req=['__initcall_sn65dsi83_init6','__initcall_k3_fb_init6','__initcall_mipi_dsi_driver_init6','__initcall_mipi_toshiba_panel_init6','__initcall_nand_base_init6','__initcall_hinand_module_init6']
+          for n in req:
+              c=names.count(n)
+              print(n, 'count=', c)
+              if c != 1: raise SystemExit('INITCALL_COUNT_FAIL '+n)
+          pos={n:names.index(n) for n in req}
+          order=req
+          print('ORDER:', ' < '.join(order))
+          print('POSITIONS:', pos)
+          if not all(pos[a] < pos[b] for a,b in zip(order,order[1:])):
+              raise SystemExit('INITCALL_ORDER_FAIL')
+          print('INITCALL_ORDER=PASS')
+          PY
+
+          {
+            echo '=== V3.50 FIX10 GOLDEN FINAL AUDIT ==='
+            for sym in nand_base_init nand_scan nand_release hinand_module_init hinand_probe hinand_irq hinand_init init_yaffs_fs yaffs2_mount k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init sn65dsi83_probe; do
+              grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+              echo "OK_SYMBOL=$sym"
+            done
+            for s in 'hisi_nand' 'lby mode=%x' 'mipi_toshiba_MDW70_V001' 'sn65dsi83' 'bq2419x_charger' 'ft5x0x_ts' 'Goodix-TS' 'bq_bci_battery' 'kim' 'bluesleep' 'btwilink'; do
+              grep -aFq "$s" "$VM" || { echo "MISSING_STRING=$s"; exit 92; }
+              echo "OK_STRING=$s"
+            done
+            for x in MTD MTD_CHAR MTD_BLOCK MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS YAFFS_FS YAFFS_YAFFS2; do grep -qx "CONFIG_${x}=y" "$CFG" || exit 93; done
+            NI=$(awk '$3=="sys_ni_syscall"{print $1; exit}' "$MAP")
+            ON=$(awk '$3=="sys_swapon"{print $1; exit}' "$MAP")
+            OFF=$(awk '$3=="sys_swapoff"{print $1; exit}' "$MAP")
+            echo "sys_ni_syscall=$NI"
+            echo "sys_swapon=$ON"
+            echo "sys_swapoff=$OFF"
+            test -n "$NI" && test "$NI" = "$ON" && test "$NI" = "$OFF"
+            grep -qx 'CONFIG_PANIC_TIMEOUT=0' "$CFG"
+            echo 'GOLDEN_PARITY_STATIC=PASS'
+            echo 'SWAP_CONTROL=PASS'
+            echo 'PANIC_TIMEOUT=0'
+          } | tee V350-FINAL-AUDIT.txt
+
+      - name: Upload V3.50 golden artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.50-FIX10-GOLDEN-PARITY
+          include-hidden-files: true
+          path: |
+            HWT101-V3.50-FIX10-GOLDEN-zImage
+            HWT101-V3.50-vmlinux
+            HWT101-V3.50-System.map
+            V350-CONFIG.txt
+            V350-SOURCE-SHA.txt
+            V350-GCC.txt
+            V350-BOARD-PATCH.txt
+            V350-GOLDEN-PATCH.txt
+            V350-YAFFS-PATCH.txt
+            V350-BUILD.log
+            V350-SHA256.txt
+            V350-SIZE.txt
+            V350-NM-ORDERED.txt
+            V350-INITCALL-AUDIT.txt
+            V350-FINAL-AUDIT.txt
+            V350-HINAND-SOURCE.c
+            V350-K3-MAKEFILE.txt
+            kernel/fs/yaffs2/yaffs_vfs.c
+            kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
