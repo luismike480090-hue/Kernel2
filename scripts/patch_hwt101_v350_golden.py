@@ -155,16 +155,24 @@ if 'reinit_completion' in s: raise SystemExit("reinit_completion survived")
 P.write_text(s)
 
 # Display link parity with FIX10 initcall order.
+# Keep k3fb.o as the original composite object; only put SN65 before it.
 mk=K/'drivers/video/k3/Makefile'
 m=mk.read_text()
 oldmk='obj-$(CONFIG_FB_K3_CLCD) := k3fb.o'
 if oldmk not in m: raise SystemExit('k3 Makefile anchor missing')
 m=m.replace(oldmk,'obj-y := sn65dsi83_hwt101.o\nobj-$(CONFIG_FB_K3_CLCD) += k3fb.o',1)
-m=re.sub(r'\s*panel/mipi_toshiba_MDY90\.o\s*$', '', m, flags=re.M)
-# Fix continuation after removing the final donor panel.
-m=m.replace('panel/mipi_cmi_PT045TN07.o \\\n\n','panel/mipi_cmi_PT045TN07.o\n\n')
+
+# Remove only the MDY90 object and terminate the composite list correctly.
+# The previous regex left a trailing backslash, which swallowed EXTRA_CFLAGS
+# into k3fb-objs and caused k3_fb.h include failures.
+old_tail='\tpanel/mipi_jdi_OTM1282B.o \\\n\tpanel/mipi_cmi_PT045TN07.o \\\n\tpanel/mipi_toshiba_MDY90.o'
+new_tail='\tpanel/mipi_jdi_OTM1282B.o \\\n\tpanel/mipi_cmi_PT045TN07.o'
+if old_tail not in m: raise SystemExit('K3 panel tail anchor missing')
+m=m.replace(old_tail,new_tail,1)
+if 'panel/mipi_toshiba_MDY90.o' in m: raise SystemExit('MDY90 survived')
+if 'EXTRA_CFLAGS += -Iarch/arm/mach-k3v2' not in m: raise SystemExit('K3 EXTRA_CFLAGS lost')
 mk.write_text(m)
 
 print('V3.50 GOLDEN patch installed')
 print('HINAND: FIX10 IRQ/MMIO/init/waits/options/LBY=5')
-print('DISPLAY: SN65 before K3FB; donor MDY90 removed')
+print('DISPLAY: SN65 before K3FB; donor MDY90 removed; composite list terminated')
