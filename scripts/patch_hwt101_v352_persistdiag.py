@@ -6,11 +6,8 @@ if len(sys.argv) != 2:
     raise SystemExit('usage: patch_hwt101_v352_persistdiag.py <kernel-root>')
 K = Path(sys.argv[1])
 
-# The HiSilicon pmem allocator starts its reserve calculation with 2 MiB and
-# rounds the total to a MiB boundary.  Therefore at least the final 1 MiB
-# below 0x40000000 is left outside all pmem/media allocations.  FIX10 /proc/iomem
-# also exposes no Linux resource in this range.  Use only the first 64 KiB of
-# that top padding for a tiny warm-reset checkpoint journal.
+# HiSilicon's pmem allocator always leaves more than 1 MiB of top padding
+# below 0x40000000. Use only 64 KiB at 0x3ff00000 for a warm-reset journal.
 BASE = 0x3ff00000
 SIZE = 0x00010000
 
@@ -33,6 +30,7 @@ cfile = K / 'arch/arm/mach-k3v2/hwt101_bootdiag.c'
 cfile.write_text(r'''/* HWT101 V3.52 persistent warm-reset boot checkpoint journal. */
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/io.h>
 #include <linux/spinlock.h>
 #include <linux/hwt101_bootdiag.h>
@@ -81,8 +79,6 @@ static int __init hwt101_bootdiag_init(void)
     if (!hwt_base)
         return -ENOMEM;
 
-    /* New diagnostic boot. Recovery FIX10 does not contain this code, so it
-     * will not clear this journal before HWTRESCUE reads /dev/mem. */
     hwt_seq = 0;
     hwt_index = 0;
     hwt_wr(0x00, HWT_MAGIC);
@@ -109,13 +105,12 @@ if line not in m:
     m += '\n# HWT101 V3.52 warm-reset boot diagnostics\n' + line
 mk.write_text(m)
 
-# Capture every initcall after the diagnostic journal becomes available.
+# Capture every initcall after the journal becomes available.
 main = K / 'init/main.c'
 s = main.read_text()
 if '#include <linux/hwt101_bootdiag.h>' not in s:
     anchor = '#include <linux/kdb.h>\n'
     if anchor not in s:
-        # portable fallback near the regular init includes
         anchor = '#include <linux/init.h>\n'
     if anchor not in s:
         raise SystemExit('main.c include anchor missing')
@@ -126,11 +121,12 @@ new = '''int __init_or_module do_one_initcall(initcall_t fn)\n{\n\tint count = p
 if old not in s:
     raise SystemExit('do_one_initcall anchor missing')
 s = s.replace(old, new, 1)
-# Keep textual initcall tracing too; K3_LOG may give a secondary copy.
+if 'int initcall_debug;' not in s:
+    raise SystemExit('initcall_debug anchor missing')
 s = s.replace('int initcall_debug;', 'int initcall_debug = 1; /* HWT101 V3.52 */', 1)
 main.write_text(s)
 
-# Mark panic entry. If an initcall dies inside panic, the journal tells us so.
+# Mark panic entry. Linux 3.0.8 uses: NORET_TYPE void panic(const char * fmt, ...)
 panic = K / 'kernel/panic.c'
 p = panic.read_text()
 if '#include <linux/hwt101_bootdiag.h>' not in p:
@@ -140,13 +136,13 @@ if '#include <linux/hwt101_bootdiag.h>' not in p:
     if inc not in p:
         raise SystemExit('panic include anchor missing')
     p = p.replace(inc, inc + '#include <linux/hwt101_bootdiag.h>\n', 1)
-pat = r'(void panic\(const char \*fmt, \.\.\.\)\s*\{)'
-p, n = re.subn(pat, r'\1\n\thwt101_diag_event(HWT_EVT_PANIC, 0, 0);', p, count=1)
-if n != 1:
-    raise SystemExit('panic() anchor missing')
+pat = r'(NORET_TYPE\s+void\s+panic\s*\(\s*const\s+char\s*\*\s*fmt\s*,\s*\.\.\.\s*\)\s*\{)'
+p, count = re.subn(pat, r'\1\n\thwt101_diag_event(HWT_EVT_PANIC, 0, 0);', p, count=1)
+if count != 1:
+    raise SystemExit('panic() Linux 3.0.8 anchor missing')
 panic.write_text(p)
 
-# HINAND checkpoints. Do NOT change any controller operation/register value.
+# HINAND checkpoints only. Controller logic/register values stay V3.50-identical.
 nand = K / 'drivers/mtd/nand/hinand_hwt101.c'
 n = nand.read_text()
 if '#include <linux/hwt101_bootdiag.h>' not in n:
