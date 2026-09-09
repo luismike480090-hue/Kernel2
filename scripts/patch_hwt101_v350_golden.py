@@ -44,7 +44,7 @@ new="""static int hwt_wait_status(struct hwt_hinand *h)
             return (int)st;
         cpu_relax();
     } while (--n);
-    printk(KERN_ERR \"NANDC : wait_op_done timeout\\n\");
+    printk(KERN_ERR "NANDC : wait_op_done timeout\n");
     return -ETIMEDOUT;
 }"""
 if old not in s: raise SystemExit("wait_status anchor missing")
@@ -70,7 +70,7 @@ new="""static int hwt_wait_int(struct hwt_hinand *h)
     unsigned long t = wait_for_completion_timeout(&h->done, 0x2710);
     if (t)
         return 0;
-    printk(KERN_ERR \"command execution timed out\\n\");
+    printk(KERN_ERR "command execution timed out\n");
     return -ETIMEDOUT;
 }"""
 if old not in s: raise SystemExit("wait_int anchor missing")
@@ -107,7 +107,7 @@ reset_new="""case NAND_CMD_RESET:
         nfc_write(h, 4, NFC_DATA_NUM);
         nfc_write(h, 0x266, NFC_OP);
         hwt_wait_status(h);
-        printk(KERN_WARNING \"lby mode=%x\\n\", readb(h->aux));
+        printk(KERN_WARNING "lby mode=%x\n", readb(h->aux));
         break;"""
 if reset_old not in s: raise SystemExit("RESET anchor missing")
 s=s.replace(reset_old,reset_new,1)
@@ -119,12 +119,12 @@ new="""void hinand_init(struct mtd_info *mtd)
     struct hwt_hinand *h = c->priv;
     u32 v;
     v = readl(K3V2_NAND_EN_REG3);
-    printk(KERN_INFO \"EN_REG3 value 0x%x\\n\", v);
+    printk(KERN_INFO "EN_REG3 value 0x%x\n", v);
     v |= 0x00080000;
-    printk(KERN_INFO \"EN_REG3 value 0x%x\\n\", v);
+    printk(KERN_INFO "EN_REG3 value 0x%x\n", v);
     writel(v, K3V2_NAND_EN_REG3);
     v = readl(K3V2_NAND_RST_REG3);
-    printk(KERN_INFO \"RST_REG3 value 0x%x\\n\", v);
+    printk(KERN_INFO "RST_REG3 value 0x%x\n", v);
     writel(0x00400000, K3V2_NAND_RST_REG3);
     writel(0x00400000, K3V2_NAND_RSTDIS_REG3);
     writel(0, K3V2_NAND_CFG0); writel(0, K3V2_NAND_CFG1);
@@ -163,8 +163,6 @@ if oldmk not in m: raise SystemExit('k3 Makefile anchor missing')
 m=m.replace(oldmk,'obj-y := sn65dsi83_hwt101.o\nobj-$(CONFIG_FB_K3_CLCD) += k3fb.o',1)
 
 # Remove only the MDY90 object and terminate the composite list correctly.
-# The previous regex left a trailing backslash, which swallowed EXTRA_CFLAGS
-# into k3fb-objs and caused k3_fb.h include failures.
 old_tail='\tpanel/mipi_jdi_OTM1282B.o \\\n\tpanel/mipi_cmi_PT045TN07.o \\\n\tpanel/mipi_toshiba_MDY90.o'
 new_tail='\tpanel/mipi_jdi_OTM1282B.o \\\n\tpanel/mipi_cmi_PT045TN07.o'
 if old_tail not in m: raise SystemExit('K3 panel tail anchor missing')
@@ -173,6 +171,29 @@ if 'panel/mipi_toshiba_MDY90.o' in m: raise SystemExit('MDY90 survived')
 if 'EXTRA_CFLAGS += -Iarch/arm/mach-k3v2' not in m: raise SystemExit('K3 EXTRA_CFLAGS lost')
 mk.write_text(m)
 
+# FIX10 does not contain the MDY90-only sbl_low_power_mode control path.
+# Keep the normal SBL branch from the donor, removing only this panel-specific
+# low-power hook. This also avoids pulling MDY90 back just to satisfy a symbol.
+edc=K/'drivers/video/k3/edc_overlay.c'
+e=edc.read_text()
+e=e.replace('extern bool sbl_low_power_mode;\n','',1)
+patterns=[
+    (r'if\s*\(sbl_low_power_mode\)\s*k3fd->bl_level\s*=\s*SBL_REDUCE_VALUE\(value\);\s*else\s*k3fd->bl_level\s*=\s*value;',
+     'k3fd->bl_level = value;'),
+    (r'if\s*\(sbl_low_power_mode\)\s*bkl_value\s*=\s*SBL_REDUCE_VALUE\(k3fd->bl_level_sbl\);\s*else\s*bkl_value\s*=\s*k3fd->bl_level_sbl;',
+     'bkl_value = k3fd->bl_level_sbl;'),
+    (r'if\s*\(sbl_low_power_mode\)\s*k3fd->bl_level\s*=\s*SBL_REDUCE_VALUE\(k3fd->bl_level_sbl\);\s*else\s*k3fd->bl_level\s*=\s*k3fd->bl_level_sbl;',
+     'k3fd->bl_level = k3fd->bl_level_sbl;'),
+]
+for pat,repl in patterns:
+    e,n=re.subn(pat,repl,e,count=1,flags=re.S)
+    if n != 1:
+        raise SystemExit('SBL donor low-power pattern missing: '+pat)
+if 'sbl_low_power_mode' in e:
+    raise SystemExit('sbl_low_power_mode survived in edc_overlay.c')
+edc.write_text(e)
+
 print('V3.50 GOLDEN patch installed')
 print('HINAND: FIX10 IRQ/MMIO/init/waits/options/LBY=5')
 print('DISPLAY: SN65 before K3FB; donor MDY90 removed; composite list terminated')
+print('SBL: MDY90-only sbl_low_power_mode donor hook removed')
