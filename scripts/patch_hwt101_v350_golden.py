@@ -44,7 +44,7 @@ new="""static int hwt_wait_status(struct hwt_hinand *h)
             return (int)st;
         cpu_relax();
     } while (--n);
-    printk(KERN_ERR "NANDC : wait_op_done timeout\n");
+    printk(KERN_ERR "NANDC : wait_op_done timeout\\n");
     return -ETIMEDOUT;
 }"""
 if old not in s: raise SystemExit("wait_status anchor missing")
@@ -70,7 +70,7 @@ new="""static int hwt_wait_int(struct hwt_hinand *h)
     unsigned long t = wait_for_completion_timeout(&h->done, 0x2710);
     if (t)
         return 0;
-    printk(KERN_ERR "command execution timed out\n");
+    printk(KERN_ERR "command execution timed out\\n");
     return -ETIMEDOUT;
 }"""
 if old not in s: raise SystemExit("wait_int anchor missing")
@@ -107,7 +107,7 @@ reset_new="""case NAND_CMD_RESET:
         nfc_write(h, 4, NFC_DATA_NUM);
         nfc_write(h, 0x266, NFC_OP);
         hwt_wait_status(h);
-        printk(KERN_WARNING "lby mode=%x\n", readb(h->aux));
+        printk(KERN_WARNING "lby mode=%x\\n", readb(h->aux));
         break;"""
 if reset_old not in s: raise SystemExit("RESET anchor missing")
 s=s.replace(reset_old,reset_new,1)
@@ -119,12 +119,12 @@ new="""void hinand_init(struct mtd_info *mtd)
     struct hwt_hinand *h = c->priv;
     u32 v;
     v = readl(K3V2_NAND_EN_REG3);
-    printk(KERN_INFO "EN_REG3 value 0x%x\n", v);
+    printk(KERN_INFO "EN_REG3 value 0x%x\\n", v);
     v |= 0x00080000;
-    printk(KERN_INFO "EN_REG3 value 0x%x\n", v);
+    printk(KERN_INFO "EN_REG3 value 0x%x\\n", v);
     writel(v, K3V2_NAND_EN_REG3);
     v = readl(K3V2_NAND_RST_REG3);
-    printk(KERN_INFO "RST_REG3 value 0x%x\n", v);
+    printk(KERN_INFO "RST_REG3 value 0x%x\\n", v);
     writel(0x00400000, K3V2_NAND_RST_REG3);
     writel(0x00400000, K3V2_NAND_RSTDIS_REG3);
     writel(0, K3V2_NAND_CFG0); writel(0, K3V2_NAND_CFG1);
@@ -152,6 +152,18 @@ new='ret=request_irq(h->irq,hinand_irq,IRQF_DISABLED,"hisi_nand",h);if(ret)goto 
 if old not in s: raise SystemExit("probe request_irq anchor missing")
 s=s.replace(old,new,1)
 if 'reinit_completion' in s: raise SystemExit("reinit_completion survived")
+
+# Hard gate: none of the generated printk strings may contain a literal newline
+# before the closing quote.  All six FIX10 diagnostic strings must retain \\n# as C escape sequences in the generated source.
+for required in (
+    'NANDC : wait_op_done timeout\\n',
+    'command execution timed out\\n',
+    'lby mode=%x\\n',
+    'EN_REG3 value 0x%x\\n',
+    'RST_REG3 value 0x%x\\n',
+):
+    if required not in s:
+        raise SystemExit('generated HINAND C string escape lost: ' + required)
 P.write_text(s)
 
 # Display link parity with FIX10 initcall order.
