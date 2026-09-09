@@ -1,0 +1,201 @@
+name: HWT101 V3.53 Auto Recovery Diagnostic
+
+on:
+  push:
+    branches: [ v353-auto-recovery-diag ]
+    paths:
+      - '.github/workflows/hwt101-v353-auto-recovery-diag.yml'
+      - 'scripts/patch_hwt101_v352_persistdiag.py'
+      - 'scripts/patch_hwt101_v353_autorecovery.py'
+      - 'scripts/patch_hwt101_v350_golden.py'
+      - 'scripts/patch_hwt101_yaffs_v350.py'
+      - 'scripts/reconstruct_t101_board_cm10.py'
+      - 'oem_recovered/display/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Exact source and GCC
+        run: |
+          set -e
+          git clone --depth 1 -b cm-10.1 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          test "$(git -C kernel rev-parse HEAD)" = "08fd9448a6bfc6923a5caa9da8260d3be930686c"
+          git -C kernel rev-parse HEAD | tee V353-SOURCE-SHA.txt
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git gcc46
+          gcc46/bin/arm-eabi-gcc --version | tee V353-GCC.txt
+          grep -qi '4.6.x-google 20120106' V353-GCC.txt
+          echo "TC=$PWD/gcc46/bin/arm-eabi-" >> "$GITHUB_ENV"
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/kernel/timeconst.pl || true
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/kernel/timeconst.pl || true
+
+      - name: Configure FIX10 golden baseline
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+          set_v(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=$2" >> .config; }
+
+          set_y LCD_TOSHIBA_MDW70
+          for x in LCD_PANASONIC_VVX10F002A00 LCD_CMI_OTM1280A LCD_SAMSUNG_LMS350DF04 LCD_SAMSUNG_S6E39A LCD_SHARP_LS035B3SX LCD_CMI_PT045TN07 LCD_JDI_OTM1282B LCD_TOSHIBA_MDY90 LCD_K3_FAKE; do set_n "$x"; done
+          for x in FB_K3 FB_K3_CLCD I2C REGULATOR HAS_EARLYSUSPEND EARLYSUSPEND LEDS_K3_6421 ANDROID_K3_VIBRATOR ARM_HISIK3_WATCHDOG; do set_y "$x"; done
+          for x in TOUCH_INPUT_SYNAPTICS_RMI4 TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC SYNAPTICS_TOUCH_KEY SRECORDER BALONG_POWER BALONG_RMNET MHL_SII8240 MHL_SII9244 K3_LOG; do set_n "$x"; done
+          set_y XMM_POWER
+          set_y XMM_RMNET
+          for x in MTD MTD_CHAR MTD_BLOCK MTD_PARTITIONS MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS MISC_FILESYSTEMS YAFFS_FS YAFFS_YAFFS2; do set_y "$x"; done
+          for x in SWAP ZRAM XVMALLOC ZRAM_DEBUG; do set_n "$x"; done
+          set_v PANIC_TIMEOUT 0
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make oldnoconfig
+
+      - name: Reconstruct T101 golden hardware
+        run: |
+          set -e
+          python3 scripts/reconstruct_t101_board_cm10.py kernel | tee V353-BOARD-PATCH.txt
+          grep -q 'platform=21, i2c=1/10/2' V353-BOARD-PATCH.txt
+          cp oem_recovered/display/sn65dsi83_hwt101.c kernel/drivers/video/k3/sn65dsi83_hwt101.c
+          cp oem_recovered/display/sn65dsi83_oem_table.h kernel/drivers/video/k3/sn65dsi83_oem_table.h
+          python3 scripts/patch_hwt101_v350_golden.py kernel | tee V353-GOLDEN-PATCH.txt
+          python3 scripts/patch_hwt101_yaffs_v350.py kernel | tee V353-YAFFS-PATCH.txt
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -C kernel oldnoconfig
+
+      - name: Add V3.52 persistent checkpoints
+        run: |
+          set -e
+          python3 scripts/patch_hwt101_v352_persistdiag.py kernel | tee V353-PERSIST-PATCH.txt
+
+      - name: Add V3.53 automatic recovery
+        run: |
+          set -e
+          python3 scripts/patch_hwt101_v353_autorecovery.py kernel | tee V353-AUTORECOVERY-PATCH.txt
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -C kernel oldnoconfig
+          cp kernel/.config V353-CONFIG.txt
+
+      - name: Source hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          D=kernel/arch/arm/mach-k3v2/hwt101_bootdiag.c
+          H=kernel/include/linux/hwt101_bootdiag.h
+          P=kernel/arch/arm/mach-k3v2/pm.c
+          W=kernel/drivers/watchdog/hisik3_wdt.c
+          N=kernel/drivers/mtd/nand/hinand_hwt101.c
+
+          grep -q '#define HWTDIAG_BASE 0x3ff00000UL' "$H"
+          grep -q '#define HWTDIAG_SIZE 0x00010000UL' "$H"
+          grep -q 'HWT_SOFT_TIMEOUT_SEC 60' "$D"
+          grep -q 'kernel_restart("recovery")' "$D"
+          grep -q 'schedule_delayed_work.*HWT_SOFT_TIMEOUT_SEC \* HZ' "$D"
+          grep -q '__ATTR(boot_ok, 0200' "$D"
+          grep -q 'hwt101_set_recovery_reason(1)' "$D"
+          grep -q 'hwt101_diag_wdt_disarm' "$D"
+          grep -q 'void hwt101_set_recovery_reason(int enable)' "$P"
+          grep -q 'find_rebootmap("recovery")' "$P"
+          grep -q 'void hwt101_diag_wdt_disarm(void)' "$W"
+          grep -q 'hwt101_diag_pending()' "$W"
+          grep -q 'k3_wdt_kick_stop();' "$W"
+          grep -q 'wdt_config(30);' "$W"
+          grep -q 'HWTDIAG3 hardware recovery watchdog armed' "$W"
+          grep -qx 'CONFIG_ARM_HISIK3_WATCHDOG=y' kernel/.config
+          grep -qx '# CONFIG_K3_LOG is not set' kernel/.config
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+          grep -q '#define HWT_NFC_IRQ        46' "$N"
+          grep -q '#define HWT_NFC_BASE       0xfd100000' "$N"
+          grep -q '#define HWT_NFC_AUX_BASE   0xfd200000' "$N"
+          echo V353_AUTORECOVERY_SOURCE_GATE=PASS | tee V353-GATE.txt
+
+      - name: Build zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -j2 zImage 2>&1 | tee ../V353-BUILD.log
+          cp arch/arm/boot/zImage ../HWT101-V3.53-FIX10-AUTORECOVERY-DIAG-zImage
+          cp vmlinux ../HWT101-V3.53-AUTORECOVERY-DIAG-vmlinux
+          cp System.map ../HWT101-V3.53-AUTORECOVERY-DIAG-System.map
+          "$TC"nm -n vmlinux > ../V353-NM-ORDERED.txt
+          sha256sum arch/arm/boot/zImage | tee ../V353-SHA256.txt
+          stat -c%s arch/arm/boot/zImage | tee ../V353-SIZE.txt
+
+      - name: Binary audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map; VM=kernel/vmlinux
+          {
+            echo '=== V3.53 AUTO RECOVERY DIAGNOSTIC AUDIT ==='
+            for sym in hwt101_diag_event hwt101_diag_pending hwt101_bootdiag_init hwt101_set_recovery_reason hwt101_diag_wdt_disarm nand_scan hinand_probe hinand_irq hinand_init k3_fb_init mipi_toshiba_panel_init sn65dsi83_probe; do
+              grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+              echo "OK_SYMBOL=$sym"
+            done
+            for s in 'HWTDIAG3: journal ready' 'HWTDIAG3: Android BOOT_OK' 'HWTDIAG3 hardware recovery watchdog armed' 'hisi_nand' 'lby mode=%x' 'sn65dsi83' 'mipi_toshiba_MDW70_V001'; do
+              grep -aFq "$s" "$VM" || { echo "MISSING_STRING=$s"; exit 92; }
+              echo "OK_STRING=$s"
+            done
+            grep -qx 'CONFIG_ARM_HISIK3_WATCHDOG=y' kernel/.config
+            grep -qx '# CONFIG_K3_LOG is not set' kernel/.config
+            grep -qx '# CONFIG_SWAP is not set' kernel/.config
+            grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
+            echo AUTORECOVERY_BINARY=PASS
+            echo SOFTWARE_TIMEOUT=60s
+            echo HARDWARE_WDT_LOAD=30s
+            echo RECOVERY_REASON=0x02
+            echo K3_LOG=OFF_TO_PROTECT_DIAG_JOURNAL
+            echo SWAP_CONTROL=PASS
+            echo PANIC_TIMEOUT=0
+          } | tee V353-FINAL-AUDIT.txt
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.53-FIX10-AUTORECOVERY-DIAG
+          include-hidden-files: true
+          path: |
+            HWT101-V3.53-FIX10-AUTORECOVERY-DIAG-zImage
+            HWT101-V3.53-AUTORECOVERY-DIAG-vmlinux
+            HWT101-V3.53-AUTORECOVERY-DIAG-System.map
+            V353-CONFIG.txt
+            V353-SOURCE-SHA.txt
+            V353-GCC.txt
+            V353-BOARD-PATCH.txt
+            V353-GOLDEN-PATCH.txt
+            V353-YAFFS-PATCH.txt
+            V353-PERSIST-PATCH.txt
+            V353-AUTORECOVERY-PATCH.txt
+            V353-GATE.txt
+            V353-BUILD.log
+            V353-SHA256.txt
+            V353-SIZE.txt
+            V353-NM-ORDERED.txt
+            V353-FINAL-AUDIT.txt
+            kernel/arch/arm/mach-k3v2/hwt101_bootdiag.c
+            kernel/include/linux/hwt101_bootdiag.h
+            kernel/arch/arm/mach-k3v2/pm.c
+            kernel/drivers/watchdog/hisik3_wdt.c
+            kernel/drivers/mtd/nand/hinand_hwt101.c
