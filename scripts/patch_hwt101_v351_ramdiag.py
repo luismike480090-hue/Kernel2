@@ -22,7 +22,7 @@ static struct resource hwt101_ramdiag_res={
  .flags=IORESOURCE_MEM,
 };
 static struct platform_device hwt101_ramdiag_dev={
- .name="ram_console",.id=-1,.num_resources=1,.resource=&hwt101_ramdiag_res,
+ .name = "ram_console", .id=-1,.num_resources=1,.resource=&hwt101_ramdiag_res,
 };
 static int __init hwt101_ramdiag_register(void)
 {
