@@ -1,0 +1,135 @@
+name: HWT101 V3.70 RAW OOB Diagnostic
+
+on:
+  push:
+    branches: [ v370-raw-oob-diag ]
+    paths:
+      - '.github/workflows/hwt101-v370-raw-oob-diag.yml'
+      - 'scripts/patch_hwt101_v370_raw_oob_diag.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V3.69 and add V3.70 raw OOB diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v369-hinand-read-column.yml').read_text()
+          marker = '      - name: Reproduce exact V3.68 and apply V3.69 read-column fix\n'
+          p = wf.find(marker)
+          if p < 0: raise SystemExit('V3.69 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0: raise SystemExit('V3.69 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0: raise SystemExit('V3.69 run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v369_hinand_read_column.py kernel | tee V369-HINAND-READ-COLUMN-PATCH.txt\n'
+          if anchor not in s: raise SystemExit('V3.69 patch anchor missing')
+          s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v370_raw_oob_diag.py kernel | tee V370-RAW-OOB-PATCH.txt\n', 1)
+          pth.write_text(s)
+
+          print('V370_DERIVATION=PASS')
+          print('BASE=EXACT_V369_TESTED')
+          print('CHANGE=RAW_OOB_DIAGNOSTIC_ONLY')
+          print('WRITE_OPERATIONS=NONE')
+          PY
+
+      - name: Build and audit V3.70
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V3.70-RAW-OOB-DIAG-zImage
+          cp kernel/vmlinux HWT101-V3.70-RAW-OOB-DIAG-vmlinux
+          cp kernel/System.map HWT101-V3.70-RAW-OOB-DIAG-System.map
+          sha256sum HWT101-V3.70-RAW-OOB-DIAG-zImage | tee V370-SHA256.txt
+          stat -c%s HWT101-V3.70-RAW-OOB-DIAG-zImage | tee V370-SIZE.txt
+
+          Z=HWT101-V3.70-RAW-OOB-DIAG-zImage
+          SIZE=$(stat -c%s "$Z")
+          OEM_SIZE=4124692
+          HP=kernel/drivers/mtd/nand/hinand_hwt101.c
+          MAP=kernel/System.map
+
+          grep -aFq 'HWT101_V370_HINAND_DIAG' kernel/vmlinux
+          grep -aFq 'HWT101_V370_RAW_OOB' kernel/vmlinux
+          grep -q 'HWT_SYSTEM_START_PAGE 91392U' "$HP"
+          grep -q 'HWT_RAW_SCAN_PAGES 512U' "$HP"
+          grep -q 'hwt_capture_system_raw(h);' "$HP"
+          grep -q 'create_proc_read_entry("hwt_nand_raw_oob",0444' "$HP"
+
+          # Preserve V3.69 + V3.68 proven NAND path.
+          grep -q 'case NAND_CMD_READSTART: h->column=h->addr\[0\]&0xffff;' "$HP"
+          grep -q 'mtd->writesize = 8192;' "$HP"
+          grep -q 'mtd->oobsize = 448;' "$HP"
+          grep -q 'mtd->erasesize = 2 \* 1024 \* 1024;' "$HP"
+          grep -q 'h->regs=ioremap_nocache(r1->start,resource_size(r1));' "$HP"
+          grep -q 'h->aux=ioremap_nocache(r0->start,resource_size(r0));' "$HP"
+          grep -q '.coherent_dma_mask=0xffffffffULL,' "$HP"
+
+          # No experimental memory change, no swap/zram.
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx '# CONFIG_ZRAM is not set' kernel/.config
+          test "$SIZE" -le "$OEM_SIZE"
+
+          for sym in k3_fb_init mipi_toshiba_panel_init sn65dsi83_probe mipi_dsi_probe ldi_probe nand_scan hinand_probe s5k5cag_module_init; do
+            grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+          done
+
+          {
+            echo '=== V3.70 HWT101 RAW OOB DIAG AUDIT ==='
+            echo V370_BINARY=PASS
+            echo BASE=V369_TESTED
+            echo RAW_DIAG=/proc/hwt_nand_raw_oob
+            echo WRITE_OPERATIONS=NONE
+            echo SYSTEM_START_PAGE=91392
+            echo SCAN_PAGES=512
+            echo CAPTURE_HITS=3
+            echo NAND_GEOMETRY=8192_448_2097152_8GiB
+            echo IRQ=46
+            echo DMA_MASK=0xffffffff
+            echo ZIMAGE_SIZE=$SIZE
+            echo OEM_ZIMAGE_SIZE=$OEM_SIZE
+            echo MARGIN_VS_OEM=$((OEM_SIZE-SIZE))
+            echo SWAP_ZRAM=OFF
+          } | tee V370-FINAL-AUDIT.txt
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.70-RAW-OOB-DIAG
+          include-hidden-files: true
+          path: |
+            HWT101-V3.70-*
+            V370-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/drivers/mtd/nand/nand_base.c
+            kernel/drivers/mtd/nand/nand_ids.c
