@@ -1,0 +1,188 @@
+name: HWT101 V3.59 OEM Content Parity
+
+on:
+  push:
+    branches: [ v359-oem-content-parity ]
+    paths:
+      - '.github/workflows/hwt101-v359-oem-content-parity.yml'
+      - 'scripts/patch_hwt101_v356_panel_parity.py'
+      - 'scripts/patch_hwt101_v350_golden.py'
+      - 'scripts/patch_hwt101_yaffs_v350.py'
+      - 'scripts/reconstruct_t101_board_cm10.py'
+      - 'oem_recovered/display/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Exact source and GCC
+        run: |
+          set -e
+          git clone --depth 1 -b cm-10.1 https://github.com/mangusta86/android_kernel_huawei_k3v2oem1.git kernel
+          test "$(git -C kernel rev-parse HEAD)" = "08fd9448a6bfc6923a5caa9da8260d3be930686c"
+          git -C kernel rev-parse HEAD | tee V359-SOURCE-SHA.txt
+          git clone --depth 1 https://github.com/radxa/android-platform-prebuilts-gcc-linux-x86-arm-arm-eabi-4.6.git gcc46
+          gcc46/bin/arm-eabi-gcc --version | tee V359-GCC.txt
+          grep -qi '4.6.x-google 20120106' V359-GCC.txt
+          echo "TC=$PWD/gcc46/bin/arm-eabi-" >> "$GITHUB_ENV"
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\@([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/@\1/g' kernel/kernel/timeconst.pl || true
+          sed -i -E 's/defined[[:space:]]*\([[:space:]]*\%([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\)/%\1/g' kernel/kernel/timeconst.pl || true
+
+      - name: Configure OEM content parity baseline
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make mrproper
+          make hisi_k3v2oem1_defconfig
+          set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+          set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+          set_v(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=$2" >> .config; }
+
+          set_y LCD_TOSHIBA_MDW70
+          for x in LCD_PANASONIC_VVX10F002A00 LCD_CMI_OTM1280A LCD_SAMSUNG_LMS350DF04 LCD_SAMSUNG_S6E39A LCD_SHARP_LS035B3SX LCD_CMI_PT045TN07 LCD_JDI_OTM1282B LCD_TOSHIBA_MDY90 LCD_K3_FAKE; do set_n "$x"; done
+          for x in FB_K3 FB_K3_CLCD I2C REGULATOR HAS_EARLYSUSPEND EARLYSUSPEND LEDS_K3_6421 ANDROID_K3_VIBRATOR ARM_HISIK3_WATCHDOG; do set_y "$x"; done
+
+          # Storage path preserved from FIX10 reconstruction.
+          for x in MTD MTD_CHAR MTD_BLOCK MTD_PARTITIONS MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS MISC_FILESYSTEMS YAFFS_FS YAFFS_YAFFS2; do set_y "$x"; done
+          for x in SWAP ZRAM XVMALLOC ZRAM_DEBUG; do set_n "$x"; done
+
+          # Donor stacks proven absent from the WORKING HWT101 OEM kallsyms.
+          for x in SRECORDER BALONG_POWER BALONG_RMNET MHL_SII8240 MHL_SII9244 K3_LOG BCMDHD_BCM DHD_USE_SCHED_SCAN; do set_n "$x"; done
+          for x in TOUCH_INPUT_SYNAPTICS_RMI4 TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC SYNAPTICS_TOUCH_KEY RMI4_BUS RMI4_DEBUG RMI4_FWLIB RMI4_I2C RMI4_SPI RMI4_GENERIC RMI4_F1A RMI4_F09 RMI4_F11 RMI4_F11_PEN RMI4_VIRTUAL_BUTTON RMI4_F17 RMI4_F19 RMI4_F21 RMI4_F34 RMI4_F54 RMI4_DEV; do set_n "$x"; done
+          for x in CYPRESS_CYTTSP4_BUS TOUCHSCREEN_CYPRESS_CYTTSP4 TOUCHSCREEN_CYPRESS_CYTTSP4_I2C TOUCHSCREEN_CYPRESS_CYTTSP4_SPI TOUCHSCREEN_MXT224E; do set_n "$x"; done
+
+          # Phone/modem/audio/network donor blocks absent from OEM HWT101.
+          for x in XMM_POWER XMM_RMNET AUDIENCE USB_NET_SMSC95XX; do set_n "$x"; done
+
+          # Sensor donor blocks absent from OEM kallsyms.
+          for x in HUAWEI_FEATURE_SENSORS_ACC_GYRO_LSM330 HUAWEI_FEATURE_SENSORS_AKM8963 HUAWEI_FEATURE_PROXIMITY_APDS990X; do set_n "$x"; done
+
+          # Donor phone camera sensors absent from OEM HWT101.
+          for x in HIK3_CAMERA_OV8830 HIK3_CAMERA_SONYIMX105 HIK3_CAMERA_S5K3H2YX_FOXCONN HIK3_CAMERA_S5K3H2YX_SAMSUNGEM HIK3_CAMERA_MT9M114 HIK3_CAMERA_SONYIMX091; do set_n "$x"; done
+          # Present in OEM HWT101. gc0339 is missing from the public donor source tree.
+          set_y HIK3_CAMERA_S5K5CAG
+
+          set_v PANIC_TIMEOUT 0
+          sed -i '/^CONFIG_LOCALVERSION=/d;/^CONFIG_LOCALVERSION_AUTO=/d;/^# CONFIG_LOCALVERSION_AUTO is not set/d' .config
+          echo 'CONFIG_LOCALVERSION="-g883717a-dirty"' >> .config
+          echo '# CONFIG_LOCALVERSION_AUTO is not set' >> .config
+          rm -f .scmversion
+          make oldnoconfig
+
+      - name: Reconstruct HWT101 and patch panel parity
+        run: |
+          set -e
+          python3 scripts/reconstruct_t101_board_cm10.py kernel | tee V359-BOARD-PATCH.txt
+          grep -q 'platform=21, i2c=1/10/2' V359-BOARD-PATCH.txt
+          cp oem_recovered/display/sn65dsi83_hwt101.c kernel/drivers/video/k3/sn65dsi83_hwt101.c
+          cp oem_recovered/display/sn65dsi83_oem_table.h kernel/drivers/video/k3/sn65dsi83_oem_table.h
+          python3 scripts/patch_hwt101_v350_golden.py kernel | tee V359-GOLDEN-PATCH.txt
+          python3 scripts/patch_hwt101_yaffs_v350.py kernel | tee V359-YAFFS-PATCH.txt
+          python3 scripts/patch_hwt101_v356_panel_parity.py kernel | tee V359-PANEL-PATCH.txt
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -C kernel oldnoconfig
+          cp kernel/.config V359-CONFIG.txt
+
+      - name: Source hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          P=kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+          grep -q 'pinfo->xres = 1280;' "$P"
+          grep -q 'pinfo->yres = 800;' "$P"
+          grep -q 'pinfo->orientation = LCD_LANDSCAPE;' "$P"
+          grep -q 'HWT356 PANEL_PARITY 1280x800 LANDSCAPE' "$P"
+          for x in BCMDHD_BCM RMI4_BUS CYPRESS_CYTTSP4_BUS TOUCHSCREEN_CYPRESS_CYTTSP4 XMM_POWER XMM_RMNET AUDIENCE USB_NET_SMSC95XX HUAWEI_FEATURE_SENSORS_ACC_GYRO_LSM330 HUAWEI_FEATURE_SENSORS_AKM8963 HUAWEI_FEATURE_PROXIMITY_APDS990X; do
+            ! grep -q "^CONFIG_${x}=y" kernel/.config || { echo "BAD_CONFIG_SURVIVED=$x"; exit 81; }
+          done
+          for x in HIK3_CAMERA_OV8830 HIK3_CAMERA_SONYIMX105 HIK3_CAMERA_S5K3H2YX_FOXCONN HIK3_CAMERA_S5K3H2YX_SAMSUNGEM HIK3_CAMERA_MT9M114 HIK3_CAMERA_SONYIMX091; do
+            ! grep -q "^CONFIG_${x}=y" kernel/.config || { echo "BAD_CAMERA_SURVIVED=$x"; exit 82; }
+          done
+          grep -qx 'CONFIG_HIK3_CAMERA_S5K5CAG=y' kernel/.config
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx '# CONFIG_ZRAM is not set' kernel/.config
+          ! grep -Rqs 'hwt355_screen_checkpoint\|HWT355CHK' kernel
+          echo V359_OEM_CONTENT_SOURCE_GATE=PASS | tee V359-GATE.txt
+
+      - name: Build zImage
+        working-directory: kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
+          make -j2 zImage 2>&1 | tee ../V359-BUILD.log
+          cp arch/arm/boot/zImage ../HWT101-V3.59-FIX10-OEM-CONTENT-PARITY-zImage
+          cp vmlinux ../HWT101-V3.59-OEM-CONTENT-PARITY-vmlinux
+          cp System.map ../HWT101-V3.59-OEM-CONTENT-PARITY-System.map
+          "$TC"nm -n vmlinux > ../V359-NM-ORDERED.txt
+          sha256sum arch/arm/boot/zImage | tee ../V359-SHA256.txt
+          stat -c%s arch/arm/boot/zImage | tee ../V359-SIZE.txt
+
+      - name: Binary and size audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAP=kernel/System.map; VM=kernel/vmlinux; Z=kernel/arch/arm/boot/zImage
+          SIZE=$(stat -c%s "$Z"); OEM=4124692
+          {
+            echo '=== V3.59 HWT101 OEM CONTENT PARITY AUDIT ==='
+            for sym in k3_fb_init mipi_toshiba_panel_init mipi_toshiba_panel_set_fastboot sn65dsi83_probe mipi_dsi_probe ldi_probe nand_scan hinand_probe s5k5cag_module_init; do
+              grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+              echo "OK_SYMBOL=$sym"
+            done
+            grep -aFq 'HWT356 PANEL_PARITY 1280x800 LANDSCAPE' "$VM" || { echo MISSING_PANEL_MARKER; exit 92; }
+            if grep -Eqi ' [tT] (dhd_|wl_cfg80211|bcmsdh|wldev|rmi_|cyttsp4_|es305_|xmm_|rmnet_|lsm330_|akm8963_|apds990x_|smsc95xx_|ov8830_|sonyimx105_|s5k3h2yx_|mt9m114_|sonyimx091_)' "$MAP"; then
+              echo WRONG_DONOR_SYMBOLS_SURVIVED
+              grep -Ei ' [tT] (dhd_|wl_cfg80211|bcmsdh|wldev|rmi_|cyttsp4_|es305_|xmm_|rmnet_|lsm330_|akm8963_|apds990x_|smsc95xx_|ov8830_|sonyimx105_|s5k3h2yx_|mt9m114_|sonyimx091_)' "$MAP" | head -50
+              exit 93
+            fi
+            echo WRONG_DONOR_STACKS=REMOVED
+            echo S5K5CAG=BUILTIN
+            echo ZIMAGE_SIZE=$SIZE
+            echo OEM_ZIMAGE_SIZE=$OEM
+            if [ "$SIZE" -le "$OEM" ]; then echo SIZE_VS_OEM=PASS; else echo SIZE_VS_OEM=FAIL; exit 94; fi
+            echo PANEL=1280x800_LANDSCAPE
+            echo SWAP=OFF
+            echo ZRAM=OFF
+            echo V359_BINARY=PASS
+          } | tee V359-FINAL-AUDIT.txt
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.59-FIX10-OEM-CONTENT-PARITY
+          include-hidden-files: true
+          path: |
+            HWT101-V3.59-FIX10-OEM-CONTENT-PARITY-zImage
+            HWT101-V3.59-OEM-CONTENT-PARITY-vmlinux
+            HWT101-V3.59-OEM-CONTENT-PARITY-System.map
+            V359-CONFIG.txt
+            V359-SOURCE-SHA.txt
+            V359-GCC.txt
+            V359-BOARD-PATCH.txt
+            V359-GOLDEN-PATCH.txt
+            V359-YAFFS-PATCH.txt
+            V359-PANEL-PATCH.txt
+            V359-GATE.txt
+            V359-BUILD.log
+            V359-SHA256.txt
+            V359-SIZE.txt
+            V359-NM-ORDERED.txt
+            V359-FINAL-AUDIT.txt
+            kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
