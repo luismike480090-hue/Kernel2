@@ -1,0 +1,133 @@
+name: HWT101 V3.66 HiNAND Map Swap
+
+on:
+  push:
+    branches: [ v366-hinand-map-swap ]
+    paths:
+      - '.github/workflows/hwt101-v366-hinand-map-swap.yml'
+      - 'scripts/patch_hwt101_v366_hinand_map_swap.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce V3.63 and apply NAND fixes through V3.66
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v363-ntfs-prune.yml').read_text()
+          marker = '      - name: Derive V3.63 from exact V3.62B baseline\n'
+          p = wf.find(marker)
+          if p < 0: raise SystemExit('V3.63 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0: raise SystemExit('V3.63 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0: raise SystemExit('V3.63 run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v356_panel_parity.py kernel | tee V363-PANEL-PATCH.txt\n'
+          if anchor not in s: raise SystemExit('panel patch anchor missing')
+          inject=(anchor
+              +'python3 scripts/patch_hwt101_v364a_nand_diag_only.py kernel | tee V366-NAND-DIAG-PATCH.txt\n'
+              +'python3 scripts/patch_hwt101_v365_hinand_dma_mask.py kernel | tee V366-DMA-MASK-PATCH.txt\n'
+              +'python3 scripts/patch_hwt101_v366_hinand_map_swap.py kernel | tee V366-MAP-SWAP-PATCH.txt\n')
+          s=s.replace(anchor,inject,1)
+          pth.write_text(s)
+          print('V366_DERIVATION=PASS')
+          print('BASE=EXACT_V363')
+          print('DMA_MASK_FIX=YES')
+          print('NAND_MAP_SWAP=YES')
+          print('MEMORY_PATCH=NONE')
+          PY
+
+      - name: Build and audit V3.66
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V3.66-HINAND-MAP-SWAP-zImage
+          cp kernel/vmlinux HWT101-V3.66-HINAND-MAP-SWAP-vmlinux
+          cp kernel/System.map HWT101-V3.66-HINAND-MAP-SWAP-System.map
+          sha256sum HWT101-V3.66-HINAND-MAP-SWAP-zImage | tee V366-SHA256.txt
+          stat -c%s HWT101-V3.66-HINAND-MAP-SWAP-zImage | tee V366-SIZE.txt
+
+          Z=HWT101-V3.66-HINAND-MAP-SWAP-zImage
+          SIZE=$(stat -c%s "$Z")
+          OEM_SIZE=4124692
+          HP=kernel/drivers/mtd/nand/hinand_hwt101.c
+          MAP=kernel/System.map
+
+          grep -aFq 'HWT101_V366_HINAND_DIAG' kernel/vmlinux
+          grep -q 'h->regs=ioremap_nocache(r1->start,resource_size(r1));' "$HP"
+          grep -q 'h->aux=ioremap_nocache(r0->start,resource_size(r0));' "$HP"
+          grep -q '#define HWT_NFC_BASE       0xfd100000' "$HP"
+          grep -q '#define HWT_NFC_AUX_BASE   0xfd200000' "$HP"
+          grep -q '.coherent_dma_mask=0xffffffffULL,' "$HP"
+          grep -q 'READID32=0x%08x' "$HP"
+
+          # Preserve V3.63 memory layout; V3.64 memory experiment stays out.
+          grep -q $'#define LCD_XRES\t(720)' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
+          grep -q $'#define LCD_YRES\t(1280)' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
+          ! grep -q '160497664UL' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
+
+          grep -q 'pinfo->xres = 1280;' kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+          grep -q 'pinfo->yres = 800;' kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+          for sym in k3_fb_init mipi_toshiba_panel_init mipi_toshiba_panel_set_fastboot sn65dsi83_probe mipi_dsi_probe ldi_probe nand_scan hinand_probe s5k5cag_module_init; do
+            grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+          done
+          test "$SIZE" -le "$OEM_SIZE"
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx '# CONFIG_ZRAM is not set' kernel/.config
+
+          {
+            echo '=== V3.66 HWT101 HINAND MAP SWAP AUDIT ==='
+            echo V366_BINARY=PASS
+            echo BASE_MEMORY_LAYOUT=V363_UNCHANGED
+            echo NAND_DATA_PHYS=0xFD100000
+            echo NANDC_REGS_PHYS=0xFD200000
+            echo CONTROLLER_MAP=r1
+            echo DATA_MAP=r0
+            echo DMA_MASK=0xffffffff
+            echo READID_DIAG=ENABLED
+            echo ZIMAGE_SIZE=$SIZE
+            echo OEM_ZIMAGE_SIZE=$OEM_SIZE
+            echo MARGIN_VS_OEM=$((OEM_SIZE-SIZE))
+            echo SWAP_ZRAM=OFF
+          } | tee V366-FINAL-AUDIT.txt
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.66-HINAND-MAP-SWAP
+          include-hidden-files: true
+          path: |
+            HWT101-V3.66-*
+            V366-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
