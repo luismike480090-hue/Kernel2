@@ -1,0 +1,103 @@
+name: HWT101 V3.64A NAND Diag Only
+
+on:
+  push:
+    branches: [ v364a-nand-diag-only ]
+    paths:
+      - '.github/workflows/hwt101-v364a-nand-diag-only.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V3.63 derivation and inject NAND diag only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v363-ntfs-prune.yml').read_text()
+          marker = '      - name: Derive V3.63 from exact V3.62B baseline\n'
+          p = wf.find(marker)
+          if p < 0:
+              raise SystemExit('V3.63 workflow derivation step not found')
+          r = wf.find('        run: |\n', p)
+          if r < 0:
+              raise SystemExit('V3.63 run block not found')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0:
+              raise SystemExit('V3.63 run block end not found')
+          block = wf[r:e]
+          lines = []
+          for line in block.splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          block = '\n'.join(lines) + '\n'
+          subprocess.run(block, shell=True, executable='/bin/bash', check=True)
+
+          pth = Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s = pth.read_text()
+          anchor = 'python3 scripts/patch_hwt101_v356_panel_parity.py kernel | tee V363-PANEL-PATCH.txt\n'
+          if anchor not in s:
+              raise SystemExit('panel patch anchor missing in reproduced V3.63 build')
+          s = s.replace(anchor, anchor + 'python3 scripts/patch_hwt101_v364a_nand_diag_only.py kernel | tee V364A-NAND-DIAG-PATCH.txt\n', 1)
+          pth.write_text(s)
+          print('V364A_DERIVATION=PASS')
+          print('BASE=EXACT_V363')
+          print('ONLY_NEW_CHANGE=NAND_PROC_DIAG')
+          print('MEMORY_PATCH=NONE')
+          PY
+
+      - name: Build exact V3.63 plus NAND diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V3.64A-NAND-DIAG-ONLY-zImage
+          sha256sum HWT101-V3.64A-NAND-DIAG-ONLY-zImage | tee V364A-SHA256.txt
+          stat -c%s HWT101-V3.64A-NAND-DIAG-ONLY-zImage | tee V364A-SIZE.txt
+          grep -aFq 'HWT101_V364A_HINAND_DIAG' kernel/vmlinux
+          grep -q 'create_proc_read_entry("hwt_hinand_diag",0444' kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q $'#define LCD_XRES\t(720)' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
+          grep -q $'#define LCD_YRES\t(1280)' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
+          grep -q 'pinfo->xres = 1280;' kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+          grep -q 'pinfo->yres = 800;' kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+          {
+            echo V364A_BINARY=PASS
+            echo BASE_MEMORY_LAYOUT=V363_UNCHANGED
+            echo PANEL_RUNTIME=1280x800
+            echo PROC_HINAND_DIAG=BUILTIN
+            echo SWAP_ZRAM=OFF
+          } | tee V364A-FINAL-AUDIT.txt
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.64A-NAND-DIAG-ONLY
+          include-hidden-files: true
+          path: |
+            HWT101-V3.64A-*
+            HWT101-V3.63-FIX10-NTFS-PRUNE-zImage
+            V364A-*.txt
+            V363-FINAL-AUDIT.txt
+            V363-BUILD.log
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
