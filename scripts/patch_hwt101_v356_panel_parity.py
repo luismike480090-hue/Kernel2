@@ -50,10 +50,26 @@ for required in (
         raise SystemExit('V3.56 gate failed: ' + required)
 
 p.write_text(s)
+
+# V3.59 OEM sensor parity:
+# The pinned donor revision calls set_selftest_lm330() unconditionally from
+# sensor_info.c. Once the LSM330 donor driver is disabled this leaves an
+# undefined reference at final link. Later upstream source already removed
+# this unconditional call. HWT101 OEM kallsyms also has no LSM330 path.
+sp = K / 'drivers/huawei/device/sensor_info.c'
+ss = sp.read_text(errors='ignore')
+old = 'if(set_selftest(val) || set_selftest_lm330(val))'
+new = 'if(set_selftest(val)) /* HWT359: OEM HWT101 has no LSM330 selftest path */'
+if old not in ss:
+    raise SystemExit('sensor_info LSM330 selftest anchor missing')
+ss = ss.replace(old, new, 1)
+sp.write_text(ss)
+
 print('V3.56 PANEL PARITY patch installed')
 print('PANEL_XRES=1280')
 print('PANEL_YRES=800')
 print('PANEL_ORIENTATION=LANDSCAPE')
 print('DONOR_TIMINGS=UNCHANGED')
+print('HWT359_LSM330_DANGLING_CALL=REMOVED')
 print('CHECKPOINT=NONE')
 print('SWAP_ZRAM=UNCHANGED_OFF')
