@@ -94,6 +94,7 @@ if '\thwt355_screen_checkpoint(fn);\n\treturn ret;\n' not in s:
 
 p.write_text(s)
 print('V3.55B screen checkpoint instrumentation installed')
+print('PROFILE=HWT101_FB0_PAGE0_ONLY')
 print('FRAMEBUFFER=fb0')
 print('PAGE=0 ONLY')
 print('IGNORE_XOFFSET=YES')
