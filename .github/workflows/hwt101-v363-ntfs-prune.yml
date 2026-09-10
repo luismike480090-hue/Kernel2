@@ -1,0 +1,104 @@
+name: HWT101 V3.63 NTFS Prune
+
+on:
+  push:
+    branches: [ v363-ntfs-prune ]
+    paths:
+      - '.github/workflows/hwt101-v363-ntfs-prune.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Derive V3.63 from exact V3.62B baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          src = Path('scripts/build_hwt101_v362_touch_fw_prune.sh')
+          dst = Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s = src.read_text()
+
+          # Rename diagnostics/outputs while retaining the same source and toolchain path.
+          s = s.replace('V3.62', 'V3.63').replace('V362', 'V363')
+          s = s.replace('TOUCH-FW-PRUNE', 'NTFS-PRUNE')
+          s = s.replace('TOUCH FIRMWARE PRUNE AUDIT', 'NTFS PRUNE AUDIT')
+
+          # Compare against the physically-unflashed V3.62B size baseline.
+          s = s.replace('V361_SIZE=4239556', 'V362B_SIZE=4148640')
+          s = s.replace('V361_ZIMAGE_SIZE=$V361_SIZE', 'V362B_ZIMAGE_SIZE=$V362B_SIZE')
+          s = s.replace('SAVED_VS_V361=$((V361_SIZE-SIZE))', 'SAVED_VS_V362B=$((V362B_SIZE-SIZE))')
+
+          # Reproduce the V3.62B CONFIG_EXTRA_FIRMWARE fix, then make ONE new change: NTFS off.
+          marker = 'set_v PANIC_TIMEOUT 0\n'
+          insert = marker + '''# V3.62B parity: remove forced donor RMI4 firmware but preserve in-kernel IPPS.\nset_y FIRMWARE_IN_KERNEL\nset_v EXTRA_FIRMWARE '\"\"'\n# V3.63 only new size cut: NTFS is not used by Android boot/internal YAFFS2.\nfor x in NTFS_FS NTFS_DEBUG NTFS_RW; do set_n "$x"; done\n'''
+          if marker not in s:
+              raise SystemExit('initial config marker missing')
+          s = s.replace(marker, insert, 1)
+
+          touch_line = 'for x in TOUCH_INPUT_SYNAPTICS_RMI4 TOUCHSCREEN_RMI4_SYNAPTICS_GENERIC SYNAPTICS_TOUCH_KEY RMI4_BUS RMI4_DEBUG RMI4_FWLIB RMI4_I2C RMI4_SPI RMI4_GENERIC RMI4_F1A RMI4_F09 RMI4_F11 RMI4_F11_PEN RMI4_VIRTUAL_BUTTON RMI4_F17 RMI4_F19 RMI4_F21 RMI4_F34 RMI4_F54 RMI4_DEV CYPRESS_CYTTSP4_BUS TOUCHSCREEN_CYPRESS_CYTTSP4 TOUCHSCREEN_CYPRESS_CYTTSP4_I2C TOUCHSCREEN_CYPRESS_CYTTSP4_SPI TOUCHSCREEN_MXT224E; do set_n "$x"; done\n'
+          second = touch_line + '''set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }\nset_v(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=$2" >> .config; }\nset_y FIRMWARE_IN_KERNEL\nset_v EXTRA_FIRMWARE '\"\"'\nfor x in NTFS_FS NTFS_DEBUG NTFS_RW; do set_n "$x"; done\n'''
+          if touch_line not in s:
+              raise SystemExit('post-patch config marker missing')
+          s = s.replace(touch_line, second, 1)
+
+          # Hard gates: storage needed by the tablet must survive; only NTFS may disappear.
+          gate = "grep -qx 'CONFIG_HIK3_CAMERA_S5K5CAG=y' kernel/.config\n"
+          extra_gates = '''grep -qx 'CONFIG_EXTRA_FIRMWARE=""' kernel/.config\ngrep -qx 'CONFIG_FIRMWARE_IN_KERNEL=y' kernel/.config\ngrep -qx '# CONFIG_NTFS_FS is not set' kernel/.config\ngrep -qx 'CONFIG_FAT_FS=y' kernel/.config\ngrep -qx 'CONFIG_VFAT_FS=y' kernel/.config\ngrep -qx 'CONFIG_YAFFS_FS=y' kernel/.config\ngrep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config\ngrep -qx 'CONFIG_MMC=y' kernel/.config\ngrep -qx 'CONFIG_IPPS_SUPPORT=y' kernel/.config\n'''
+          if gate not in s:
+              raise SystemExit('source gate marker missing')
+          s = s.replace(gate, extra_gates + gate, 1)
+
+          # Ensure NTFS objects truly do not compile.
+          audit_marker = "grep -aFq 'HWT356 PANEL_PARITY 1280x800 LANDSCAPE' \"$VM\" || { echo MISSING_PANEL_MARKER; exit 92; }\n"
+          ntfs_audit = audit_marker + '''  if grep -Eq 'CC +fs/ntfs/' V363-BUILD.log; then echo NTFS_OBJECT_STILL_COMPILED; exit 98; fi\n'''
+          if audit_marker not in s:
+              raise SystemExit('binary audit marker missing')
+          s = s.replace(audit_marker, ntfs_audit, 1)
+
+          status_marker = '  echo TOUCH_DONOR_FIRMWARE=REMOVED\n'
+          if status_marker not in s:
+              raise SystemExit('status marker missing')
+          s = s.replace(status_marker, status_marker + '  echo NTFS=OFF\n', 1)
+
+          dst.write_text(s)
+          print('V363_DERIVATION=PASS')
+          print('BASELINE_V362B=4148640')
+          print('ONLY_NEW_FEATURE_CUT=CONFIG_NTFS_FS')
+          PY
+          chmod +x scripts/build_hwt101_v363_ntfs_prune.sh
+          grep -nE 'V362B_SIZE|NTFS_FS|EXTRA_FIRMWARE|FIRMWARE_IN_KERNEL|FAT_FS|VFAT_FS|YAFFS|IPPS_SUPPORT' scripts/build_hwt101_v363_ntfs_prune.sh | tee V363-DERIVATION.txt
+
+      - name: Build and audit V3.63
+        shell: bash
+        run: bash scripts/build_hwt101_v363_ntfs_prune.sh
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.63-FIX10-NTFS-PRUNE
+          include-hidden-files: true
+          path: |
+            HWT101-V3.63-*
+            V363-*.txt
+            V363-BUILD.log
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+            kernel/firmware/Makefile
