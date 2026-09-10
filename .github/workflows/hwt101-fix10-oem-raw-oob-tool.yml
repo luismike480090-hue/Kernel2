@@ -1,0 +1,60 @@
+name: HWT101 FIX10 OEM RAW OOB Tool
+
+on:
+  push:
+    branches: [ fix10-oem-raw-oob-tool ]
+    paths:
+      - '.github/workflows/hwt101-fix10-oem-raw-oob-tool.yml'
+      - 'tools/hwt101_fix10_oem_raw_oob.c'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ARM cross compiler
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+
+      - name: Build freestanding ARM EABI binary
+        run: |
+          set -euo pipefail
+          arm-linux-gnueabi-gcc -Os -march=armv7-a -marm -ffreestanding -fno-builtin -fno-stack-protector \
+            -nostdlib -static -Wl,-e,_start -Wl,--build-id=none \
+            -o hwt101_fix10_oem_raw_oob tools/hwt101_fix10_oem_raw_oob.c
+          arm-linux-gnueabi-strip hwt101_fix10_oem_raw_oob
+          file hwt101_fix10_oem_raw_oob | tee FILE.txt
+          sha256sum hwt101_fix10_oem_raw_oob | tee SHA256.txt
+          stat -c%s hwt101_fix10_oem_raw_oob | tee SIZE.txt
+          arm-linux-gnueabi-readelf -h hwt101_fix10_oem_raw_oob | tee ELF-HEADER.txt
+
+          file hwt101_fix10_oem_raw_oob | grep -q 'ELF 32-bit LSB executable, ARM'
+          ! readelf -d hwt101_fix10_oem_raw_oob 2>/dev/null | grep -q NEEDED
+          grep -aFq 'HWT101_FIX10_OEM_RAW_OOB_V1' hwt101_fix10_oem_raw_oob
+
+          {
+            echo 'HWT101 FIX10 OEM RAW OOB TOOL'
+            echo 'READ_ONLY=YES'
+            echo 'TARGET=/dev/mtd/mtd0 fallback /dev/mtd0 /dev/block/mtd0'
+            echo 'PAGES=0,1,2'
+            echo 'PAGE_SIZE=8192'
+            echo 'OOB_SIZE=448'
+            echo 'MEMREADOOB=0xC00C4D04'
+            echo 'LIBC=NONE'
+            echo 'DYNAMIC_LIBS=NONE'
+          } > AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-FIX10-OEM-RAW-OOB-TOOL
+          path: |
+            hwt101_fix10_oem_raw_oob
+            FILE.txt
+            SHA256.txt
+            SIZE.txt
+            ELF-HEADER.txt
+            AUDIT.txt
