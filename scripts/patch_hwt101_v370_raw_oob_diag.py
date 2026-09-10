@@ -14,6 +14,8 @@ if anchor not in h:
     raise SystemExit('anchor missing')
 
 block = r'''
+static void hwt_readstart(struct hwt_hinand *h);
+
 #define HWT_RAW_HITS 3
 #define HWT_SYSTEM_START_PAGE 91392U
 #define HWT_RAW_SCAN_PAGES 512U
