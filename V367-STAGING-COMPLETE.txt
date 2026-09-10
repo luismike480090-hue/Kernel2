@@ -1,0 +1,1 @@
+Do not use this file for runtime. It only marks that the V3.67 patch/workflow files are staged on the V3.66 branch before creating the dedicated V3.67 branch.
