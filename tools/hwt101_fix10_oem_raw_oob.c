@@ -126,3 +126,5 @@ void _start(void)
     sys_close(fd);
     sys_exit(0);
 }
+
+/* rebuild trigger after libgcc link fix */
