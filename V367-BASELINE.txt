@@ -1,0 +1,1 @@
+V3.67 will branch from this commit after staging the workflow and patch script. V3.66 tested binary remains unchanged; these source files are not referenced by the V3.66 workflow trigger.
