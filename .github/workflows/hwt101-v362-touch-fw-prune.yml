@@ -1,0 +1,49 @@
+name: HWT101 V3.62 Touch FW Prune
+
+on:
+  push:
+    branches: [ v362-touch-fw-prune ]
+    paths:
+      - '.github/workflows/hwt101-v362-touch-fw-prune.yml'
+      - 'scripts/build_hwt101_v362_touch_fw_prune.sh'
+      - 'scripts/patch_hwt101_v356_panel_parity.py'
+      - 'scripts/patch_hwt101_v350_golden.py'
+      - 'scripts/patch_hwt101_yaffs_v350.py'
+      - 'scripts/reconstruct_t101_board_cm10.py'
+      - 'oem_recovered/display/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Build and audit V3.62
+        shell: bash
+        run: bash scripts/build_hwt101_v362_touch_fw_prune.sh
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.62-FIX10-TOUCH-FW-PRUNE
+          include-hidden-files: true
+          path: |
+            HWT101-V3.62-FIX10-TOUCH-FW-PRUNE-zImage
+            HWT101-V3.62-TOUCH-FW-PRUNE-vmlinux
+            HWT101-V3.62-TOUCH-FW-PRUNE-System.map
+            V362-*.txt
+            V362-BUILD.log
+            kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+            kernel/firmware/Makefile
