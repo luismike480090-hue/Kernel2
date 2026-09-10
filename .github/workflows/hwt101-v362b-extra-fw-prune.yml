@@ -55,7 +55,6 @@ jobs:
                 'grep -qx \'CONFIG_EXTRA_FIRMWARE=""\' .config\n'
                 'grep -qx \'CONFIG_FIRMWARE_IN_KERNEL=y\' .config\n'
                 'popd >/dev/null\n\ncp kernel/.config V362B-CONFIG.txt')
-          # Replace only the second normalization block, identified by the config copy that follows it.
           if old2 not in s:
               raise SystemExit('second config insertion point missing')
           s=s.replace(old2,new2,1)
@@ -67,7 +66,6 @@ jobs:
               raise SystemExit('gate insertion point missing')
           s=s.replace(gate,gate_new,1)
 
-          # Compare this run against the actual V3.62 image, not V3.61.
           s=s.replace('V361_SIZE=4239556', 'V361_SIZE=4194352')
           s=s.replace('V361_ZIMAGE_SIZE=$V361_SIZE', 'V362_ZIMAGE_SIZE=$V361_SIZE')
           s=s.replace('SAVED_VS_V361=$((V361_SIZE-SIZE))', 'SAVED_VS_V362=$((V361_SIZE-SIZE))')
@@ -93,3 +91,5 @@ jobs:
             V362B-BUILD.log
             kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
             kernel/firmware/Makefile
+
+# trigger-v362b
