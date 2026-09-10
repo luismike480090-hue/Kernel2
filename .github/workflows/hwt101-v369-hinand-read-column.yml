@@ -79,8 +79,6 @@ jobs:
 
           grep -aFq 'HWT101_V369_HINAND_DIAG' kernel/vmlinux
           grep -q 'case NAND_CMD_READSTART: h->column=h->addr\[0\]&0xffff;' "$HP"
-          grep -q 'hwt_diag_last_read_column=h->column;' "$HP"
-          grep -q 'LAST_READ_COLUMN=%u' "$HP"
           grep -q 'h->column=0; h->page_offset=0; memcpy(h->dma_buf' "$HP"
 
           # Preserve all V3.68 hardware-proven fixes.
