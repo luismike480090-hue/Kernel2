@@ -1,0 +1,52 @@
+name: HWT101 V3.64 Memory NAND Diag
+
+on:
+  push:
+    branches: [ v364-nand-probe-diag ]
+    paths:
+      - '.github/workflows/hwt101-v364-mem-nand-diag.yml'
+      - 'scripts/derive_hwt101_v364_mem_nand_diag.py'
+      - 'scripts/patch_hwt101_v364_mem_nand_diag.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Derive V3.64 build script
+        run: |
+          set -euo pipefail
+          python3 scripts/derive_hwt101_v364_mem_nand_diag.py | tee V364-DERIVATION.txt
+          chmod +x scripts/build_hwt101_v364_mem_nand_diag.sh
+
+      - name: Build and audit V3.64
+        shell: bash
+        run: bash scripts/build_hwt101_v364_mem_nand_diag.sh
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.64-MEM-NAND-DIAG
+          include-hidden-files: true
+          path: |
+            HWT101-V3.64-*
+            V364-*.txt
+            V364-BUILD.log
+            kernel/.config
+            kernel/System.map
+            kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
