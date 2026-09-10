@@ -1,0 +1,95 @@
+name: HWT101 V3.62B Extra FW Prune
+
+on:
+  push:
+    branches: [ v362-touch-fw-prune ]
+    paths:
+      - '.github/workflows/hwt101-v362b-extra-fw-prune.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Derive V3.62B from V3.62 exact build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp scripts/build_hwt101_v362_touch_fw_prune.sh scripts/build_hwt101_v362b_extra_fw_prune.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/build_hwt101_v362b_extra_fw_prune.sh')
+          s=p.read_text()
+          s=s.replace('V362', 'V362B').replace('V3.62', 'V3.62B')
+          s=s.replace('HWT101-V3.62B-FIX10-TOUCH-FW-PRUNE', 'HWT101-V3.62B-FIX10-EXTRA-FW-PRUNE')
+          s=s.replace('HWT101-V3.62B-TOUCH-FW-PRUNE', 'HWT101-V3.62B-EXTRA-FW-PRUNE')
+
+          old='set_v PANIC_TIMEOUT 0\n'
+          new=(old +
+               '# V3.62B: the donor defconfig forces TM2429 through CONFIG_EXTRA_FIRMWARE.\n'
+               '# Keep FIRMWARE_IN_KERNEL enabled so K3V2 IPPS firmware remains built in.\n'
+               'set_y FIRMWARE_IN_KERNEL\n'
+               'set_v EXTRA_FIRMWARE \'""\'\n')
+          if old not in s:
+              raise SystemExit('initial config insertion point missing')
+          s=s.replace(old,new,1)
+
+          old2='make oldnoconfig\npopd >/dev/null\n\ncp kernel/.config V362B-CONFIG.txt'
+          new2=('sed -i \'/^CONFIG_EXTRA_FIRMWARE=/d;/^# CONFIG_EXTRA_FIRMWARE is not set/d\' .config\n'
+                'echo \'CONFIG_EXTRA_FIRMWARE=""\' >> .config\n'
+                'sed -i \'/^CONFIG_FIRMWARE_IN_KERNEL=/d;/^# CONFIG_FIRMWARE_IN_KERNEL is not set/d\' .config\n'
+                'echo \'CONFIG_FIRMWARE_IN_KERNEL=y\' >> .config\n'
+                'make oldnoconfig\n'
+                'grep -qx \'CONFIG_EXTRA_FIRMWARE=""\' .config\n'
+                'grep -qx \'CONFIG_FIRMWARE_IN_KERNEL=y\' .config\n'
+                'popd >/dev/null\n\ncp kernel/.config V362B-CONFIG.txt')
+          # Replace only the second normalization block, identified by the config copy that follows it.
+          if old2 not in s:
+              raise SystemExit('second config insertion point missing')
+          s=s.replace(old2,new2,1)
+
+          gate="grep -qx 'CONFIG_HIK3_CAMERA_S5K5CAG=y' kernel/.config\n"
+          gate_new=("grep -qx 'CONFIG_EXTRA_FIRMWARE=\"\"' kernel/.config\n"
+                    "grep -qx 'CONFIG_FIRMWARE_IN_KERNEL=y' kernel/.config\n" + gate)
+          if gate not in s:
+              raise SystemExit('gate insertion point missing')
+          s=s.replace(gate,gate_new,1)
+
+          # Compare this run against the actual V3.62 image, not V3.61.
+          s=s.replace('V361_SIZE=4239556', 'V361_SIZE=4194352')
+          s=s.replace('V361_ZIMAGE_SIZE=$V361_SIZE', 'V362_ZIMAGE_SIZE=$V361_SIZE')
+          s=s.replace('SAVED_VS_V361=$((V361_SIZE-SIZE))', 'SAVED_VS_V362=$((V361_SIZE-SIZE))')
+          p.write_text(s)
+          print('V362B_DERIVATION=PASS')
+          PY
+          chmod +x scripts/build_hwt101_v362b_extra_fw_prune.sh
+          grep -nE 'EXTRA_FIRMWARE|FIRMWARE_IN_KERNEL|V362B' scripts/build_hwt101_v362b_extra_fw_prune.sh | tee V362B-DERIVATION.txt
+
+      - name: Build and audit V3.62B
+        shell: bash
+        run: bash scripts/build_hwt101_v362b_extra_fw_prune.sh
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V3.62B-FIX10-EXTRA-FW-PRUNE
+          include-hidden-files: true
+          path: |
+            HWT101-V3.62B-*
+            V362B-*.txt
+            V362B-BUILD.log
+            kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+            kernel/firmware/Makefile
