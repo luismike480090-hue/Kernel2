@@ -63,10 +63,18 @@ static void hexbuf(const u8 *p, u32 n)
 
 static void decu(u32 v)
 {
-    char b[16]; int i=0,j;
-    if(!v){ sys_write(1,"0",1); return; }
-    while(v && i<15){ b[i++]='0'+(v%10); v/=10; }
-    for(j=i-1;j>=0;j--) sys_write(1,&b[j],1);
+    static const u32 p10[] = {1000000000u,100000000u,10000000u,1000000u,100000u,10000u,1000u,100u,10u,1u};
+    int i,started=0;
+    char ch;
+    for(i=0;i<10;i++){
+        unsigned d=0;
+        while(v>=p10[i]){ v-=p10[i]; d++; }
+        if(d || started || i==9){
+            ch=(char)('0'+d);
+            sys_write(1,&ch,1);
+            started=1;
+        }
+    }
 }
 
 static int open_mtd0(void)
