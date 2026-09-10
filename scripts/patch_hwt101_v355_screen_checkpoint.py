@@ -16,13 +16,15 @@ if '#include <linux/fb.h>' not in s:
     s = s.replace(inc_anchor, inc_anchor + '#include <linux/fb.h>\n', 1)
 
 anchor = 'static char msgbuf[64];\n\n'
-helper = r'''/* HWT101 V3.55 screen checkpoint.
+helper = r'''/* HWT101 V3.55B screen checkpoint -- FB0 PAGE0 ONLY.
  *
  * No NAND writes, no watchdog and no persistent-RAM journal are used.
  * After fb0 exists, every completed initcall leaves a 24-bit barcode in the
- * top visible band.  If the following initcall hangs, the last completed
- * function pointer remains visible.  Bits are MSB->LSB, white=1 black=0,
- * framed by two white sentinel blocks.
+ * first framebuffer page only.  We deliberately ignore xoffset/yoffset and
+ * never pan/flip the display because HWT101 testing showed fb0 page0 is the
+ * reliable visible buffer while additional pages/buffers can misbehave.
+ * If the following initcall hangs, the last completed function pointer remains
+ * in page0. Bits are MSB->LSB, white=1 black=0, framed by white sentinels.
  */
 #define HWT355_BITS 24
 #define HWT355_SENTINELS 2
@@ -51,7 +53,11 @@ static void hwt355_screen_checkpoint(initcall_t fn)
     if (!block_w)
         return;
     rows = info->var.yres < HWT355_BAND_ROWS ? info->var.yres : HWT355_BAND_ROWS;
-    base = (u8 *)info->screen_base + info->var.yoffset * info->fix.line_length + info->var.xoffset * 4;
+
+    /* HWT101 rule: write fb0 PAGE0 only.  Do not follow xoffset/yoffset and
+     * do not call fb_pan_display: extra framebuffer pages were unreliable.
+     */
+    base = (u8 *)info->screen_base;
 
     for (y = 0; y < rows; y++) {
         u32 *row = (u32 *)(base + y * info->fix.line_length);
@@ -70,7 +76,7 @@ static void hwt355_screen_checkpoint(initcall_t fn)
         }
     }
     wmb();
-    printk(KERN_EMERG "HWT355CHK fn=%pF addr=%p code=%06x\n", fn, fn, code);
+    printk(KERN_EMERG "HWT355CHK PAGE0 fn=%pF addr=%p code=%06x\n", fn, fn, code);
 }
 
 '''
@@ -87,7 +93,12 @@ if '\thwt355_screen_checkpoint(fn);\n\treturn ret;\n' not in s:
     s = s.replace(call_anchor, call_repl, 1)
 
 p.write_text(s)
-print('V3.55 screen checkpoint instrumentation installed')
+print('V3.55B screen checkpoint instrumentation installed')
+print('FRAMEBUFFER=fb0')
+print('PAGE=0 ONLY')
+print('IGNORE_XOFFSET=YES')
+print('IGNORE_YOFFSET=YES')
+print('PAN_DISPLAY=NONE')
 print('BARCODE_BITS=24')
 print('WHITE=1 BLACK=0')
 print('SENTINELS=WHITE/WHITE')
