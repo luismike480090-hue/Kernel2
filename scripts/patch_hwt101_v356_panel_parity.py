@@ -65,11 +65,31 @@ if old not in ss:
 ss = ss.replace(old, new, 1)
 sp.write_text(ss)
 
+# V3.60 modem prune dependency closure:
+# MODEM_BOOT_QSC6085 owns get_resume_flag()/clear_resume_flag(). The donor
+# n_gsm_qsc line discipline references those helpers when UART sleep control
+# is enabled. Once all cellular modem boot drivers are removed, keeping any
+# vendor GSM-MUX discipline is both dead tablet code and can make final link
+# impossible. HWT101 has no cellular modem path, so remove the full GSM-MUX
+# family after all earlier config edits and immediately before oldnoconfig.
+cfgp = K / '.config'
+cfg = cfgp.read_text(errors='ignore')
+for name in ('N_GSM', 'N_GSM_MTK', 'N_GSM_QSC', 'N_GSM_BALONG'):
+    lines = []
+    for line in cfg.splitlines():
+        if line.startswith('CONFIG_' + name + '=') or line == '# CONFIG_' + name + ' is not set':
+            continue
+        lines.append(line)
+    lines.append('# CONFIG_' + name + ' is not set')
+    cfg = '\n'.join(lines) + '\n'
+cfgp.write_text(cfg)
+
 print('V3.56 PANEL PARITY patch installed')
 print('PANEL_XRES=1280')
 print('PANEL_YRES=800')
 print('PANEL_ORIENTATION=LANDSCAPE')
 print('DONOR_TIMINGS=UNCHANGED')
 print('HWT359_LSM330_DANGLING_CALL=REMOVED')
+print('HWT360_GSM_MUX_FAMILY=DISABLED')
 print('CHECKPOINT=NONE')
 print('SWAP_ZRAM=UNCHANGED_OFF')
