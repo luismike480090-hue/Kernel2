@@ -1,4 +1,4 @@
-name: HWT101 V3.55 Screen Checkpoint
+name: HWT101 V3.55B FB0 Page0 Checkpoint
 
 on:
   push:
@@ -67,7 +67,7 @@ jobs:
           rm -f .scmversion
           make oldnoconfig
 
-      - name: Reconstruct T101 golden hardware and add visual checkpoint
+      - name: Reconstruct T101 golden hardware and add PAGE0 visual checkpoint
         run: |
           set -e
           python3 scripts/reconstruct_t101_board_cm10.py kernel | tee V355-BOARD-PATCH.txt
@@ -86,10 +86,18 @@ jobs:
         run: |
           set -euo pipefail
           N=kernel/drivers/mtd/nand/hinand_hwt101.c
-          grep -q 'hwt355_screen_checkpoint' kernel/init/main.c
-          grep -q 'HWT355_BITS 24' kernel/init/main.c
-          grep -q 'registered_fb\[0\]' kernel/init/main.c
-          grep -q 'HWT355CHK' kernel/init/main.c
+          M=kernel/init/main.c
+          grep -q 'hwt355_screen_checkpoint' "$M"
+          grep -q 'HWT355_BITS 24' "$M"
+          grep -q 'registered_fb\[0\]' "$M"
+          grep -q 'HWT355CHK PAGE0' "$M"
+          grep -q 'base = (u8 \*)info->screen_base;' "$M"
+          ! grep -q 'base = .*var\.yoffset' "$M"
+          ! grep -q 'base = .*var\.xoffset' "$M"
+          ! grep -q 'fb_pan_display' "$M"
+          grep -q 'PAGE=0 ONLY' V355-CHECKPOINT-PATCH.txt
+          grep -q 'IGNORE_XOFFSET=YES' V355-CHECKPOINT-PATCH.txt
+          grep -q 'IGNORE_YOFFSET=YES' V355-CHECKPOINT-PATCH.txt
           ! grep -Rqs 'HWTDIAG_BASE\|HWT_SOFT_TIMEOUT_SEC\|hwt101_diag_event\|hwt101_diag_pending\|hwt101_bootdiag_init\|HWTDIAG3' kernel
           ! grep -Rqs 'SECRAM_RESET_ADDR.*HWT355\|HWT355.*SECRAM_RESET_ADDR' kernel
           grep -qx 'CONFIG_ARM_HISIK3_WATCHDOG=y' kernel/.config
@@ -100,7 +108,7 @@ jobs:
           grep -q '#define HWT_NFC_IRQ        46' "$N"
           grep -q '#define HWT_NFC_BASE       0xfd100000' "$N"
           grep -q '#define HWT_NFC_AUX_BASE   0xfd200000' "$N"
-          echo V355_SCREEN_CHECKPOINT_SOURCE_GATE=PASS | tee V355-GATE.txt
+          echo V355B_FB0_PAGE0_SOURCE_GATE=PASS | tee V355-GATE.txt
 
       - name: Build zImage
         working-directory: kernel
@@ -109,9 +117,9 @@ jobs:
           set -euo pipefail
           export ARCH=arm SUBARCH=arm CROSS_COMPILE="$TC"
           make -j2 zImage 2>&1 | tee ../V355-BUILD.log
-          cp arch/arm/boot/zImage ../HWT101-V3.55-FIX10-SCREEN-CHECKPOINT-zImage
-          cp vmlinux ../HWT101-V3.55-SCREEN-CHECKPOINT-vmlinux
-          cp System.map ../HWT101-V3.55-SCREEN-CHECKPOINT-System.map
+          cp arch/arm/boot/zImage ../HWT101-V3.55B-FIX10-FB0-PAGE0-zImage
+          cp vmlinux ../HWT101-V3.55B-FB0-PAGE0-vmlinux
+          cp System.map ../HWT101-V3.55B-FB0-PAGE0-System.map
           "$TC"nm -n vmlinux > ../V355-NM-ORDERED.txt
           sha256sum arch/arm/boot/zImage | tee ../V355-SHA256.txt
           stat -c%s arch/arm/boot/zImage | tee ../V355-SIZE.txt
@@ -122,20 +130,23 @@ jobs:
           set -euo pipefail
           MAP=kernel/System.map; VM=kernel/vmlinux
           {
-            echo '=== V3.55 SCREEN CHECKPOINT AUDIT ==='
+            echo '=== V3.55B FB0 PAGE0 CHECKPOINT AUDIT ==='
             for sym in nand_scan hinand_probe hinand_irq hinand_init k3_fb_init mipi_toshiba_panel_init sn65dsi83_probe; do
               grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
               echo "OK_SYMBOL=$sym"
             done
-            grep -aFq 'HWT355CHK fn=' "$VM" || { echo 'MISSING_CHECKPOINT_STRING'; exit 92; }
+            grep -aFq 'HWT355CHK PAGE0 fn=' "$VM" || { echo 'MISSING_PAGE0_CHECKPOINT_STRING'; exit 92; }
             for bad in 'HWTDIAG3: journal ready' 'HWTDIAG3: Android BOOT_OK' 'HWTDIAG3 hardware recovery watchdog armed'; do
               if grep -aFq "$bad" "$VM"; then echo "UNEXPECTED_DIAG_STRING=$bad"; exit 93; fi
             done
             grep -qx '# CONFIG_SWAP is not set' kernel/.config
             grep -qx '# CONFIG_ZRAM is not set' kernel/.config
             grep -qx 'CONFIG_PANIC_TIMEOUT=0' kernel/.config
-            echo V355_BINARY=PASS
-            echo CHECKPOINT_MODE=FRAMEBUFFER_BARCODE_24BIT
+            echo V355B_BINARY=PASS
+            echo CHECKPOINT_MODE=FB0_PAGE0_BARCODE_24BIT
+            echo XOFFSET_USED=NO
+            echo YOFFSET_USED=NO
+            echo PAN_DISPLAY_USED=NO
             echo NAND_DIAGNOSTIC_WRITES=NONE
             echo PERSISTENT_RAM=NONE
             echo REBOOT_REASON_MODIFICATION=NONE
@@ -146,12 +157,12 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HWT101-V3.55-FIX10-SCREEN-CHECKPOINT
+          name: HWT101-V3.55B-FIX10-FB0-PAGE0-CHECKPOINT
           include-hidden-files: true
           path: |
-            HWT101-V3.55-FIX10-SCREEN-CHECKPOINT-zImage
-            HWT101-V3.55-SCREEN-CHECKPOINT-vmlinux
-            HWT101-V3.55-SCREEN-CHECKPOINT-System.map
+            HWT101-V3.55B-FIX10-FB0-PAGE0-zImage
+            HWT101-V3.55B-FB0-PAGE0-vmlinux
+            HWT101-V3.55B-FB0-PAGE0-System.map
             V355-CONFIG.txt
             V355-SOURCE-SHA.txt
             V355-GCC.txt
