@@ -1,3 +1,4 @@
+# HWT101 V3.67 build trigger
 name: HWT101 V3.67 Micron 8K NAND
 
 on:
@@ -85,12 +86,10 @@ jobs:
           grep -q 'WRITESIZE=%u' "$HP"
           grep -q 'hwt_diag_mtd_size=h->mtd.size' "$HP"
 
-          # V3.66 hardware fixes preserved.
           grep -q 'h->regs=ioremap_nocache(r1->start,resource_size(r1));' "$HP"
           grep -q 'h->aux=ioremap_nocache(r0->start,resource_size(r0));' "$HP"
           grep -q '.coherent_dma_mask=0xffffffffULL,' "$HP"
 
-          # Preserve V3.63 memory/display baseline and critical symbols.
           grep -q $'#define LCD_XRES\t(720)' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
           grep -q $'#define LCD_YRES\t(1280)' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
           ! grep -q '160497664UL' kernel/arch/arm/mach-k3v2/include/mach/hisi_mem.h
