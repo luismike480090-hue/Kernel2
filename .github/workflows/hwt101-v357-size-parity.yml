@@ -60,9 +60,6 @@ jobs:
           set_y XMM_RMNET
           for x in MTD MTD_CHAR MTD_BLOCK MTD_PARTITIONS MTD_CMDLINE_PARTS MTD_NAND MTD_NAND_IDS MISC_FILESYSTEMS YAFFS_FS YAFFS_YAFFS2; do set_y "$x"; done
           for x in SWAP ZRAM XVMALLOC ZRAM_DEBUG; do set_n "$x"; done
-          # HWT101 OEM runtime uses TI wlcore/wl18xx modules. The donor's
-          # built-in Broadcom DHD block is absent from OEM kallsyms and wastes
-          # a large amount of zImage space.
           set_n BCMDHD_BCM
           set_n DHD_USE_SCHED_SCAN
           set_v PANIC_TIMEOUT 0
@@ -98,8 +95,8 @@ jobs:
           grep -q 'HWT356 PANEL_PARITY 1280x800 LANDSCAPE' "$P"
           grep -q '{ 0x20, 0x00 }, { 0x21, 0x05 }' "$S"
           grep -q '{ 0x24, 0x20 }, { 0x25, 0x03 }' "$S"
-          grep -qx '# CONFIG_BCMDHD_BCM is not set' kernel/.config
-          grep -qx '# CONFIG_DHD_USE_SCHED_SCAN is not set' kernel/.config
+          ! grep -q '^CONFIG_BCMDHD_BCM=y' kernel/.config
+          ! grep -q '^CONFIG_DHD_USE_SCHED_SCAN=y' kernel/.config
           grep -qx '# CONFIG_SWAP is not set' kernel/.config
           grep -qx '# CONFIG_ZRAM is not set' kernel/.config
           ! grep -Rqs 'hwt355_screen_checkpoint\|HWT355CHK' kernel
