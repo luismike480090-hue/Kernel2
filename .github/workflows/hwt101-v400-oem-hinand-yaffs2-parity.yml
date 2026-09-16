@@ -1,0 +1,173 @@
+name: HWT101 V4.00 OEM HiNAND YAFFS2 Parity
+
+on:
+  push:
+    branches: [ v400-oem-hinand-yaffs2-parity ]
+    paths:
+      - '.github/workflows/hwt101-v400-oem-hinand-yaffs2-parity.yml'
+      - 'scripts/patch_hwt101_v400_oem_hinand_yaffs2.py'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -iname '*google*' -o -iname '*chrome*' \) -print -delete || true
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V3.69 and apply OEM NAND/YAFFS2 parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v369-hinand-read-column.yml').read_text()
+          marker = '      - name: Reproduce exact V3.68 and apply V3.69 read-column fix\n'
+          p = wf.find(marker)
+          if p < 0: raise SystemExit('V3.69 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0: raise SystemExit('V3.69 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0: raise SystemExit('V3.69 run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v369_hinand_read_column.py kernel | tee V369-HINAND-READ-COLUMN-PATCH.txt\n'
+          if anchor not in s: raise SystemExit('V3.69 patch anchor missing')
+          s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v400_oem_hinand_yaffs2.py kernel | tee V400-OEM-HINAND-PATCH.txt\n', 1)
+          pth.write_text(s)
+          print('V400_DERIVATION=PASS')
+          print('BASE=EXACT_V369')
+          print('CHANGE=OEM_GEOMETRY_OOB_LAYOUT_CMDLINE64_ONLY')
+          PY
+
+      - name: Build V4.00
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.00-OEM-HINAND-YAFFS2-zImage
+          cp kernel/vmlinux HWT101-V4.00-OEM-HINAND-YAFFS2-vmlinux
+          cp kernel/System.map HWT101-V4.00-OEM-HINAND-YAFFS2-System.map
+          sha256sum HWT101-V4.00-OEM-HINAND-YAFFS2-zImage | tee V400-SHA256.txt
+          stat -c%s HWT101-V4.00-OEM-HINAND-YAFFS2-zImage | tee V400-SIZE.txt
+
+      - name: Deep parity audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          Z=HWT101-V4.00-OEM-HINAND-YAFFS2-zImage
+          HP=kernel/drivers/mtd/nand/hinand_hwt101.c
+          NI=kernel/drivers/mtd/nand/nand_ids.c
+          NB=kernel/drivers/mtd/nand/nand_base.c
+          CP=kernel/drivers/mtd/cmdlinepart.c
+          MAP=kernel/System.map
+          SIZE=$(stat -c%s "$Z")
+          OEM_SIZE=4124692
+
+          grep -aFq 'HWT101_V400_HINAND_DIAG' kernel/vmlinux
+          grep -q 'h->regs=ioremap_nocache(r1->start,resource_size(r1));' "$HP"
+          grep -q 'h->aux=ioremap_nocache(r0->start,resource_size(r0));' "$HP"
+          grep -q '.coherent_dma_mask=0xffffffffULL,' "$HP"
+          grep -q 'h->chip.ecc.mode=NAND_ECC_NONE' "$HP"
+          grep -q 'h->chip.ecc.layout=&hwt_hinand_oob_oem' "$HP"
+          grep -q '.eccbytes = 48' "$HP"
+          grep -q '.offset = 2, .length = 30' "$HP"
+          grep -q 'NAND_NO_AUTOINCR|NAND_NO_READRDY|NAND_BROKEN_XD' "$HP"
+          ! grep -q 'hwt_hinand_init_size' "$HP"
+          ! grep -q 'length = 446' "$HP"
+          ! grep -q 'hwt_capture_system_raw' "$HP"
+          ! grep -q 'HWT_RAW_SCAN_PAGES' "$HP"
+
+          grep -Eq '0x88, 8192, 8192, 0x200000, LP_OPTIONS' "$NI"
+          grep -q 'mtd->oobsize = 448;' "$NB"
+
+          grep -q 'unsigned long long size;' "$CP"
+          grep -q 'unsigned long long offset = OFFSET_CONTINUOUS;' "$CP"
+          grep -q '#define SIZE_REMAINING (~0ULL)' "$CP"
+
+          grep -q '0xfe2a2050' "$HP"
+          grep -q '0xfe2a20a4' "$HP"
+          grep -q '0xfe2a20a8' "$HP"
+          grep -q '0x2710' "$HP"
+          grep -q '0x7ff' "$HP"
+          grep -q '0x201' "$HP"
+          grep -q '0x21c0' "$HP"
+          grep -q '0x4c7' "$HP"
+          grep -q '0x01c00000' "$HP"
+
+          grep -qx 'CONFIG_MTD=y' kernel/.config
+          grep -qx 'CONFIG_MTD_BLOCK=y' kernel/.config
+          grep -qx 'CONFIG_MTD_CMDLINE_PARTS=y' kernel/.config
+          grep -qx 'CONFIG_MTD_NAND=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_FS=y' kernel/.config
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' kernel/.config
+          grep -qx '# CONFIG_SWAP is not set' kernel/.config
+          grep -qx '# CONFIG_ZRAM is not set' kernel/.config
+
+          for sym in hinand_probe hinand_cmd_ctrl hinand_read_buf hinand_write_buf hinand_read_byte hinand_dev_ready hinand_irq hinand_init nand_scan nand_scan_tail yaffs2_mount k3_fb_init mipi_dsi_probe mipi_toshiba_panel_init sn65dsi83_probe s5k5cag_module_init; do
+            grep -Eq " [tT] ${sym}$" "$MAP" || { echo "MISSING_SYMBOL=$sym"; exit 91; }
+          done
+
+          test "$SIZE" -le "$OEM_SIZE"
+
+          {
+            echo '=== HWT101 V4.00 OEM HINAND/YAFFS2 PARITY AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=EXACT_V369
+            echo FIX10_OEM_CLOCK_RESET_IRQ=PASS
+            echo CONTROLLER_MMIO=0xFD200000
+            echo DATA_APERTURE=0xFD100000
+            echo DMA_MASK=0xffffffff
+            echo NAND_ID=2c:88
+            echo NAND_MODEL=MT29F64G08CBAAA
+            echo NAND_SIZE=8589934592
+            echo PAGE_SIZE=8192
+            echo OOB_SIZE=448
+            echo ERASE_SIZE=2097152
+            echo OEM_ID_ENTRY=0x88_8192_8192MiB_0x200000_0x11d
+            echo LINUX_ECC_MODE=NAND_ECC_NONE
+            echo NFC_INTERNAL_ECC=ENABLED_BY_0x4c7
+            echo OEM_ECCBYTES=48
+            echo OEM_ECCPOS=32..79
+            echo OEM_OOBFREE=2..31_LEN30
+            echo YAFFS2=ENABLED
+            echo CMDLINEPART_64BIT=PASS
+            echo V370_AUTO_SYSTEM_SCAN=ABSENT
+            echo SWAP_ZRAM=OFF_UNTIL_STORAGE_PARITY_PROVEN
+            echo ZIMAGE_SIZE=$SIZE
+            echo OEM_ZIMAGE_SIZE=$OEM_SIZE
+            echo MARGIN_VS_OEM=$((OEM_SIZE-SIZE))
+          } | tee V400-FINAL-AUDIT.txt
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V4.00-OEM-HINAND-YAFFS2-PARITY
+          include-hidden-files: true
+          path: |
+            HWT101-V4.00-*
+            V400-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/drivers/mtd/nand/nand_base.c
+            kernel/drivers/mtd/nand/nand_ids.c
+            kernel/drivers/mtd/cmdlinepart.c
