@@ -10,10 +10,7 @@ ids = K/'drivers/mtd/nand/nand_ids.c'
 base = K/'drivers/mtd/nand/nand_base.c'
 cmd = K/'drivers/mtd/cmdlinepart.c'
 
-# ------------------------------------------------------------------
-# 1) HiNAND: replace the V3.68 guessed geometry/OOB block with the
-#    exact nand_ecclayout recovered from the functional FIX10 kernel.
-# ------------------------------------------------------------------
+# 1) Replace V3.68 guessed geometry/OOB with exact FIX10 nand_ecclayout.
 h = hp.read_text()
 start = h.find('/* HWT101 V3.68: exact geometry observed in the functional OEM kernel.')
 anchor = 'static inline u32 nfc_read(struct hwt_hinand *h, unsigned int reg)'
@@ -25,7 +22,6 @@ eccpos = ', '.join(str(x) for x in range(32, 80))
 oem = f'''/* HWT101 V4.00: FIX10/OEM nand_ecclayout recovered byte-for-byte\n * from kernel address 0xc07e4fb0. Linux NAND ECC mode remains NONE because\n * the HiSilicon NFC performs ECC transparently (NFC_CON=0x4c7).\n * YAFFS2 tags are out-of-band; byte 0 is the bad-block marker, byte 1\n * reserved, bytes 2..31 are the only OEM-advertised free OOB bytes.\n */\nstatic struct nand_ecclayout hwt_hinand_oob_oem = {{\n    .eccbytes = 48,\n    .eccpos = {{ {eccpos} }},\n    .oobfree = {{\n        {{ .offset = 2, .length = 30 }},\n    }},\n}};\n\n'''
 h = h[:start] + oem + h[end:]
 
-# Remove the V3.68 board init_size callback from probe and install OEM layout.
 old_cb = ('h->chip.read_byte=hinand_read_byte;h->chip.read_word=hinand_read_word;'
           'h->chip.read_buf=hinand_read_buf;h->chip.write_buf=hinand_write_buf;'
           'h->chip.init_size=hwt_hinand_init_size;h->chip.ecc.mode=NAND_ECC_NONE;'
@@ -37,23 +33,16 @@ if old_cb not in h:
     raise SystemExit('V3.68 probe callback sequence not found')
 h = h.replace(old_cb, new_cb, 1)
 
-# FIX10 sets pre-ident options 0x501 (NO_AUTOINCR | NO_READRDY | 0x400).
-# nand_get_flash_type later replaces chip-specific bits with the ID-table value.
-old_opt = 'h->chip.options|=NAND_NO_AUTOINCR;'
-new_opt = 'h->chip.options|=(NAND_NO_AUTOINCR|NAND_NO_READRDY|NAND_BROKEN_XD);'
-if old_opt not in h:
-    raise SystemExit('chip options anchor not found')
-h = h.replace(old_opt, new_opt, 1)
+# V3.50 already restored the OEM pre-ident options 0x501 exactly.
+oem_opts = 'h->chip.options|=(NAND_NO_AUTOINCR|NAND_NO_READRDY|NAND_BROKEN_XD);'
+if oem_opts not in h:
+    raise SystemExit('OEM chip options 0x501 missing before V4 patch')
 
-# Correct diagnostic strings left by V3.68; init_size is intentionally unused.
 h = h.replace('OOBFREE_LENGTH=446', 'OOBFREE_LENGTH=30')
 h = h.replace('HWT101_V369_HINAND_DIAG', 'HWT101_V400_HINAND_DIAG')
 hp.write_text(h)
 
-# ------------------------------------------------------------------
-# 2) NAND ID: reproduce the exact FIX10 table entry recovered from
-#    OEM raw kernel table at 0xc080ab8c.
-# ------------------------------------------------------------------
+# 2) Exact FIX10 NAND ID entry recovered from OEM raw kernel table.
 s = ids.read_text()
 pat = re.compile(r'\{"NAND 8GiB 3,3V 8-bit",\s*0x88,\s*0,\s*8192,\s*0,\s*LP_OPTIONS\},')
 rep = '{"NAND 8GiB 3,3V 8-bit",\t0x88, 8192, 8192, 0x200000, LP_OPTIONS},'
@@ -62,10 +51,7 @@ if n != 1:
     raise SystemExit('V3.67 Micron 0x88 ID entry not found')
 ids.write_text(s)
 
-# ------------------------------------------------------------------
-# 3) NAND core: Huawei fixed-page path reports OOB=448 for this exact
-#    Micron 0x2c:0x88 device. Do this narrowly instead of globally.
-# ------------------------------------------------------------------
+# 3) Exact OEM 448-byte OOB for the fixed-page Micron 0x2c:0x88 path.
 s = base.read_text()
 old = '\t\tmtd->oobsize = mtd->writesize / 32;\n'
 new = '''\t\t/* HWT101/FIX10 OEM parity: MT29F64G08CBAAA is 8192+448. */\n\t\tif (*maf_id == NAND_MFR_MICRON && *dev_id == 0x88 &&\n\t\t    mtd->writesize == 8192)\n\t\t\tmtd->oobsize = 448;\n\t\telse\n\t\t\tmtd->oobsize = mtd->writesize / 32;\n'''
@@ -74,10 +60,7 @@ if old not in s:
 s = s.replace(old, new, 1)
 base.write_text(s)
 
-# ------------------------------------------------------------------
-# 4) cmdlinepart: fix ARM32 truncation of explicit 5174M userdata.
-#    memparse() already returns unsigned long long; preserve it end-to-end.
-# ------------------------------------------------------------------
+# 4) Preserve memparse() 64-bit values through the ARM32 cmdline parser.
 s = cmd.read_text()
 changes = [
     ('#define SIZE_REMAINING UINT_MAX', '#define SIZE_REMAINING (~0ULL)'),
@@ -94,12 +77,11 @@ for a,b in changes:
     s = s.replace(a,b,1)
 cmd.write_text(s)
 
-# ------------------------------------------------------------------
-# Hard gates: fail build if any known-dangerous V3.68/V3.70 artifact remains.
-# ------------------------------------------------------------------
+# Hard gates.
 h = hp.read_text(); sids=ids.read_text(); sb=base.read_text(); sc=cmd.read_text()
 checks = [
     ('OEM diag marker', 'HWT101_V400_HINAND_DIAG' in h),
+    ('OEM pre-ident options 0x501', oem_opts in h),
     ('OEM eccbytes', '.eccbytes = 48' in h),
     ('OEM eccpos start', '.eccpos = { 32, 33, 34' in h),
     ('OEM eccpos end', '77, 78, 79 }' in h),
@@ -120,7 +102,7 @@ if failed:
     raise SystemExit('V400 gate failed: '+', '.join(failed))
 
 print('V400_OEM_HINAND_YAFFS2_PARITY=PASS')
-print('BASE=EXACT_V369_WITH_V349_OEM_CLOCK_IRQ_AND_V366_MAP')
+print('BASE=EXACT_V369_WITH_V350_OEM_OPTIONS_V349_CLOCK_IRQ_V366_MAP')
 print('MICRON=2c:88 MT29F64G08CBAAA')
 print('NAND=8GiB PAGE=8192 OOB=448 ERASE=2097152')
 print('OEM_NAND_ID_ENTRY=8192_8192MiB_2MiB_0x11d')
