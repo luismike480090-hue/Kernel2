@@ -1,0 +1,141 @@
+name: HWT101 V4.06 YAFFS64 USERDATA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v406-yaffs64-userdata
+    paths:
+      - 'scripts/patch_hwt101_v406_yaffs64_userdata.py'
+      - '.github/workflows/hwt101-v406-yaffs64-userdata.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce V4.05 and add YAFFS64 fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v405-android-rw-guard.yml').read_text()
+          marker = '      - name: Reproduce exact V4.03 and add V4.05 Android RW guard\n'
+          p = wf.find(marker)
+          if p < 0: raise SystemExit('V4.05 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0: raise SystemExit('V4.05 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0: raise SystemExit('V4.05 run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v405_android_rw_guard.py kernel | tee V405-ANDROID-RW-GUARD.txt\n'
+          if anchor not in s:
+              raise SystemExit('V4.05 patch invocation anchor missing')
+          s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v406_yaffs64_userdata.py kernel | tee V406-YAFFS64-USERDATA.txt\n', 1)
+          pth.write_text(s)
+          print('V406_DERIVATION=PASS')
+          print('BASE=V405_ANDROID_RW_GUARD')
+          print('CHANGE=YAFFS_64BIT_BLOCK_BYTE_OFFSETS_ONLY')
+          PY
+
+      - name: Build V4.06 kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.06-YAFFS64-USERDATA-zImage
+          cp kernel/vmlinux HWT101-V4.06-YAFFS64-USERDATA-vmlinux
+          cp kernel/System.map HWT101-V4.06-YAFFS64-USERDATA-System.map
+          cp kernel/.config V406-kernel-config.txt
+          sha256sum HWT101-V4.06-YAFFS64-USERDATA-zImage | tee V406-SHA256.txt
+          stat -c%s HWT101-V4.06-YAFFS64-USERDATA-zImage | tee V406-SIZE.txt
+
+      - name: V4.06 static audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          C=kernel/.config
+          P=kernel/drivers/mtd/cmdlinepart.c
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+
+          grep -qx 'CONFIG_YAFFS_FS=y' "$C"
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' "$C"
+          grep -qx 'CONFIG_YAFFS_DISABLE_TAGS_ECC=y' "$C"
+          grep -qx 'CONFIG_YAFFS_EMPTY_LOST_AND_FOUND=y' "$C"
+
+          # V4.05 controller and physical write guard must be unchanged.
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
+          grep -q 'nfc_write(h,0x1080,NFC_CMD)' "$H"
+          grep -q 'nfc_write(h,0x23,NFC_DMA_CTRL)' "$H"
+          grep -q 'nfc_write(h,0xd060,NFC_CMD)' "$H"
+          grep -q '.offset = 2, .length = 30' "$H"
+
+          # Previously proven cmdline 64-bit fix remains.
+          grep -q 'unsigned long long' "$P"
+          grep -q '~0ULL' "$P"
+
+          # V4.06: all YAFFS block-byte addresses that can cross 4 GiB are 64-bit.
+          grep -q 'loff_t addr =' "$Y1"
+          ! grep -q 'u32 addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+
+          {
+            echo '=== HWT101 V4.06 YAFFS64 USERDATA AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=V4.05_ANDROID_RW_GUARD
+            echo HINAND_CONTROLLER=UNCHANGED_FROM_V405
+            echo PHYSICAL_WRITE_GUARD=UNCHANGED_FROM_V405
+            echo YAFFS_ERASE_ADDR=64BIT_LOFF_T
+            echo YAFFS_MARKBAD_ADDR=64BIT_LOFF_T
+            echo YAFFS_QUERY_BLOCK_ADDR=64BIT_LOFF_T
+            echo FIXES_4GIB_WRAP=YES
+            echo USERDATA_SIZE=0x143600000
+            echo USERDATA_BLOCKS=2587
+            echo DUPLICATE_BADBLOCK_DELTA_BLOCKS=2048
+            echo DUPLICATE_BADBLOCK_DELTA_BYTES=0x100000000
+            echo "ZIMAGE_SIZE=$(cat V406-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V406-SHA256.txt)"
+          } | tee V406-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V4.06-YAFFS64-USERDATA
+          include-hidden-files: true
+          path: |
+            HWT101-V4.06-*
+            V400-*.txt
+            V401-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/fs/yaffs2/yaffs_mtdif.c
+            kernel/fs/yaffs2/yaffs_mtdif2.c
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/drivers/mtd/cmdlinepart.c
+          if-no-files-found: error
