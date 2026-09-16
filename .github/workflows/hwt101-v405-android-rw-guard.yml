@@ -1,0 +1,151 @@
+name: HWT101 V4.05 Android RW Physical Guard
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v405-android-rw-guard
+    paths:
+      - 'scripts/patch_hwt101_v405_android_rw_guard.py'
+      - '.github/workflows/hwt101-v405-android-rw-guard.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V4.03 and add V4.05 Android RW guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          # Execute the exact V4.03 derivation block, which itself reproduces
+          # V4.01/V4.00 and enables the two proven OEM YAFFS2 options.
+          wf = Path('.github/workflows/hwt101-v403-ro-yaffs-oem-parity.yml').read_text()
+          marker = '      - name: Reproduce exact V4.01 and add OEM YAFFS2 options\n'
+          p = wf.find(marker)
+          if p < 0: raise SystemExit('V4.03 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0: raise SystemExit('V4.03 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0: raise SystemExit('V4.03 run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          # Apply V4.05 after the V4.01 guard has created the proven safe base.
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v401_readonly_guard.py kernel | tee V401-READONLY-GUARD.txt\n'
+          if anchor not in s:
+              raise SystemExit('V4.01 patch invocation anchor missing')
+          s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v405_android_rw_guard.py kernel | tee V405-ANDROID-RW-GUARD.txt\n', 1)
+          pth.write_text(s)
+          print('V405_DERIVATION=PASS')
+          print('BASE=EXACT_V403_YAFFS_OEM_PARITY')
+          print('CONTROLLER_SEQUENCE=V404B_HARDWARE_PROVEN')
+          PY
+
+      - name: Build V4.05 kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.05-ANDROID-RW-GUARD-zImage
+          cp kernel/vmlinux HWT101-V4.05-ANDROID-RW-GUARD-vmlinux
+          cp kernel/System.map HWT101-V4.05-ANDROID-RW-GUARD-System.map
+          cp kernel/.config V405-kernel-config.txt
+          sha256sum HWT101-V4.05-ANDROID-RW-GUARD-zImage | tee V405-SHA256.txt
+          stat -c%s HWT101-V4.05-ANDROID-RW-GUARD-zImage | tee V405-SIZE.txt
+
+      - name: V4.05 static safety audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          C=kernel/.config
+          P=kernel/drivers/mtd/cmdlinepart.c
+
+          grep -qx 'CONFIG_YAFFS_FS=y' "$C"
+          grep -qx 'CONFIG_YAFFS_YAFFS2=y' "$C"
+          grep -qx 'CONFIG_YAFFS_DISABLE_TAGS_ECC=y' "$C"
+          grep -qx 'CONFIG_YAFFS_EMPTY_LOST_AND_FOUND=y' "$C"
+
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK PAGEPROG' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK ERASE2' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
+          grep -q 'nfc_write(h,0x1080,NFC_CMD)' "$H"
+          grep -q 'nfc_write(h,0x23,NFC_DMA_CTRL)' "$H"
+          grep -q 'nfc_write(h,0xd060,NFC_CMD)' "$H"
+          grep -q 'nfc_write(h,HWT_DMA_SIZE,NFC_CMD)' "$H"
+          grep -q 'nfc_write(h,0x21,NFC_DMA_CTRL)' "$H"
+          grep -q '.offset = 2, .length = 30' "$H"
+          grep -q '!strcmp(n,"system")' "$H"
+          grep -q '!strcmp(n,"cache")' "$H"
+          grep -q '!strcmp(n,"cust")' "$H"
+          grep -q '!strcmp(n,"cust2")' "$H"
+          grep -q '!strcmp(n,"userdata")' "$H"
+          ! grep -q 'HWT101_V401_RO_GUARD' "$H"
+          ! grep -q 'hwt_capture_system_raw' "$H"
+
+          # Keep the already-proven 64-bit cmdline partition parser fix.
+          grep -q 'unsigned long long' "$P"
+          grep -q '~0ULL' "$P"
+
+          {
+            echo '=== HWT101 V4.05 ANDROID RW PHYSICAL GUARD AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=V4.03_READ_PARITY_PLUS_V4.04B_WRITE_SEQUENCE
+            echo YAFFS_DISABLE_TAGS_ECC=y
+            echo YAFFS_EMPTY_LOST_AND_FOUND=y
+            echo PHYSICAL_WRITE_FIRST_PAGE=0x16500
+            echo PHYSICAL_WRITE_LAST_PAGE=0xfffff
+            echo SYSTEM_PAGES=0x16500..0x364ff
+            echo CACHE_PAGES=0x36500..0x3e4ff
+            echo CUST_PAGES=0x3e500..0x4e4ff
+            echo CUST2_PAGES=0x4e500..0x5e4ff
+            echo USERDATA_PAGES=0x5e500..0xfffff
+            echo RW_PARTITIONS=system,cache,cust,cust2,userdata
+            echo LOWER_CRITICAL_REGION=PHYSICALLY_BLOCKED
+            echo PAGEPROG=V404B_PROVEN_SEQUENCE
+            echo ERASE2=V404B_PROVEN_SEQUENCE
+            echo OEM_OOBFREE=2..31_LEN30
+            echo CMDLINEPART_64BIT=PRESERVED
+            echo "ZIMAGE_SIZE=$(cat V405-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V405-SHA256.txt)"
+          } | tee V405-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V4.05-ANDROID-RW-GUARD
+          include-hidden-files: true
+          path: |
+            HWT101-V4.05-*
+            V400-*.txt
+            V401-*.txt
+            V405-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/fs/yaffs2/yaffs_vfs.c
+            kernel/fs/yaffs2/yaffs_mtdif2.c
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/drivers/mtd/cmdlinepart.c
+          if-no-files-found: error
