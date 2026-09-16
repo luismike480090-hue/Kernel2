@@ -1,0 +1,112 @@
+name: HWT101 V4.01 Read-Only NAND Guard
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v400-oem-hinand-yaffs2-parity
+    paths:
+      - 'scripts/patch_hwt101_v401_readonly_guard.py'
+      - '.github/workflows/hwt101-v401-readonly-guard.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V4.00 and add read-only guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          wf = Path('.github/workflows/hwt101-v400-oem-hinand-yaffs2-parity.yml').read_text()
+          marker = '      - name: Reproduce exact V3.69 and apply OEM NAND/YAFFS2 parity\n'
+          p = wf.find(marker)
+          if p < 0: raise SystemExit('V4.00 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0: raise SystemExit('V4.00 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0: raise SystemExit('V4.00 run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v400_oem_hinand_yaffs2.py kernel | tee V400-OEM-HINAND-PATCH.txt\n'
+          if anchor not in s: raise SystemExit('V4.00 patch anchor missing')
+          s=s.replace(anchor,anchor+'python3 scripts/patch_hwt101_v401_readonly_guard.py kernel | tee V401-READONLY-GUARD.txt\n',1)
+          pth.write_text(s)
+          print('V401_DERIVATION=PASS')
+          print('BASE=EXACT_V400')
+          print('CHANGE=PHYSICAL_NAND_WRITE_GUARD_ONLY')
+          PY
+
+      - name: Build V4.01
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.01-OEM-HINAND-READONLY-zImage
+          cp kernel/vmlinux HWT101-V4.01-OEM-HINAND-READONLY-vmlinux
+          cp kernel/System.map HWT101-V4.01-OEM-HINAND-READONLY-System.map
+          sha256sum HWT101-V4.01-OEM-HINAND-READONLY-zImage | tee V401-SHA256.txt
+          stat -c%s HWT101-V4.01-OEM-HINAND-READONLY-zImage | tee V401-SIZE.txt
+
+      - name: Safety audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          grep -q 'HWT101_V401_RO_GUARD: BLOCK PAGEPROG' "$H"
+          grep -q 'HWT101_V401_RO_GUARD: BLOCK ERASE2' "$H"
+          grep -q 'h->mtd.flags &= ~MTD_WRITEABLE;' "$H"
+          ! grep -q 'nfc_write(h,0x1080,NFC_CMD)' "$H"
+          ! grep -q 'nfc_write(h,0x23,NFC_DMA_CTRL)' "$H"
+          ! grep -q 'nfc_write(h,0xd060,NFC_CMD)' "$H"
+          grep -q 'nfc_write(h,HWT_DMA_SIZE,NFC_CMD)' "$H"
+          grep -q 'nfc_write(h,0x21,NFC_DMA_CTRL)' "$H"
+          grep -q '.offset = 2, .length = 30' "$H"
+          ! grep -q 'hwt_capture_system_raw' "$H"
+          {
+            echo '=== HWT101 V4.01 READ-ONLY NAND SAFETY AUDIT ==='
+            echo 'BUILD=PASS'
+            echo 'BASE=V4.00_OEM_HINAND_YAFFS2_PARITY'
+            echo 'PAGEPROG=PHYSICALLY_BLOCKED'
+            echo 'ERASE2=PHYSICALLY_BLOCKED'
+            echo 'MTD_WRITEABLE=CLEARED'
+            echo 'READSTART=PRESERVED'
+            echo 'OEM_OOBFREE=2..31_LEN30'
+            echo 'AUTO_SYSTEM_SCAN=ABSENT'
+            echo "ZIMAGE_SIZE=$(cat V401-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V401-SHA256.txt)"
+          } | tee V401-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HWT101-V4.01-OEM-HINAND-READONLY-GUARD
+          include-hidden-files: true
+          path: |
+            HWT101-V4.01-*
+            V400-*.txt
+            V401-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/drivers/mtd/nand/nand_base.c
+            kernel/drivers/mtd/nand/nand_ids.c
+            kernel/drivers/mtd/cmdlinepart.c
+          if-no-files-found: error
