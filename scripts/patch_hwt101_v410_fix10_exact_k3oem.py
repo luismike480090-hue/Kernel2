@@ -105,3 +105,4 @@ print("SENSOR_TYPE=1")
 print("IOMUX_TYPE=0")
 print("PRODUCT=k3oem")
 print("PUBLIC_K3OEM_PROFILE=NOT_USED")
+\n# trigger build\n
