@@ -1,13 +1,13 @@
-name: HWT101 V4.06 YAFFS64 USERDATA
+name: HWT101 V4.07A ADB ISOLATION
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - v406-yaffs64-userdata
+      - v407a-adb-isolation
     paths:
-      - 'scripts/patch_hwt101_v406_yaffs64_userdata.py'
       - '.github/workflows/hwt101-v406-yaffs64-userdata.yml'
+      - 'scripts/patch_hwt101_v406_yaffs64_userdata.py'
 
 jobs:
   build:
@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
 
-      - name: Reproduce V4.05 and add YAFFS64 fix
+      - name: Reproduce exact V4.06 baseline
         shell: bash
         run: |
           set -euo pipefail
@@ -54,80 +54,110 @@ jobs:
           s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v406_yaffs64_userdata.py kernel | tee V406-YAFFS64-USERDATA.txt\n', 1)
           pth.write_text(s)
           print('V406_DERIVATION=PASS')
-          print('BASE=V405_ANDROID_RW_GUARD')
-          print('CHANGE=YAFFS_64BIT_BLOCK_BYTE_OFFSETS_ONLY')
           PY
 
-      - name: Build V4.06 kernel
+      - name: Apply ONLY exact OEM kernelrelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor="# Build.\npushd kernel >/dev/null\n"
+          if anchor not in s:
+              raise SystemExit('build anchor missing')
+          block=r"""# V4.07A: ADB isolation.
+# Preserve V4.06 kernel configuration exactly; only force exact OEM UTS_RELEASE.
+cp kernel/.config V407A-config-before.txt
+pushd kernel >/dev/null
+: > .scmversion
+KR="$(make -s LOCALVERSION= kernelrelease | tail -n1)"
+echo "V407A_KERNELRELEASE=$KR"
+test "$KR" = '3.0.8-g883717a-dirty'
+popd >/dev/null
+"""
+          s=s.replace(anchor, block+anchor, 1)
+          if "make -j2 zImage" not in s:
+              raise SystemExit('zImage build command missing')
+          s=s.replace("make -j2 zImage", "make LOCALVERSION= -j2 zImage", 1)
+          pth.write_text(s)
+          print('V407A_PATCH=PASS')
+          print('CHANGE=EXACT_KERNELRELEASE_ONLY')
+          PY
+
+      - name: Build V4.07A
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/build_hwt101_v363_ntfs_prune.sh
-          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.06-YAFFS64-USERDATA-zImage
-          cp kernel/vmlinux HWT101-V4.06-YAFFS64-USERDATA-vmlinux
-          cp kernel/System.map HWT101-V4.06-YAFFS64-USERDATA-System.map
-          cp kernel/.config V406-kernel-config.txt
-          sha256sum HWT101-V4.06-YAFFS64-USERDATA-zImage | tee V406-SHA256.txt
-          stat -c%s HWT101-V4.06-YAFFS64-USERDATA-zImage | tee V406-SIZE.txt
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07A-ADB-ISOLATION-zImage
+          cp kernel/vmlinux HWT101-V4.07A-ADB-ISOLATION-vmlinux
+          cp kernel/System.map HWT101-V4.07A-ADB-ISOLATION-System.map
+          cp kernel/.config V407A-kernel-config.txt
+          sha256sum HWT101-V4.07A-ADB-ISOLATION-zImage | tee V407A-SHA256.txt
+          stat -c%s HWT101-V4.07A-ADB-ISOLATION-zImage | tee V407A-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407A-KERNELRELEASE.txt
 
-      - name: V4.06 static audit
+      - name: V4.07A hard isolation audit
         shell: bash
         run: |
           set -euo pipefail
-          H=kernel/drivers/mtd/nand/hinand_hwt101.c
           C=kernel/.config
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
           P=kernel/drivers/mtd/cmdlinepart.c
           Y1=kernel/fs/yaffs2/yaffs_mtdif.c
           Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
 
-          grep -qx 'CONFIG_YAFFS_FS=y' "$C"
-          grep -qx 'CONFIG_YAFFS_YAFFS2=y' "$C"
-          grep -qx 'CONFIG_YAFFS_DISABLE_TAGS_ECC=y' "$C"
-          grep -qx 'CONFIG_YAFFS_EMPTY_LOST_AND_FOUND=y' "$C"
+          grep -qx '3.0.8-g883717a-dirty' V407A-KERNELRELEASE.txt
+          ! grep -q 'dirty+' V407A-KERNELRELEASE.txt
 
-          # V4.05 controller and physical write guard must be unchanged.
+          # These MUST remain exactly as V4.06 working C3R3 kernel.
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+          grep -qx '# CONFIG_MAC80211 is not set' "$C"
+          grep -qx '# CONFIG_TI_ST is not set' "$C"
+          ! grep -q '^CONFIG_WIRELESS_EXT=y$' "$C"
+
+          cmp -s V407A-config-before.txt "$C"
+
+          # Preserve V4.05/V4.06 storage work.
           grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
           grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
-          grep -q 'nfc_write(h,0x1080,NFC_CMD)' "$H"
-          grep -q 'nfc_write(h,0x23,NFC_DMA_CTRL)' "$H"
-          grep -q 'nfc_write(h,0xd060,NFC_CMD)' "$H"
-          grep -q '.offset = 2, .length = 30' "$H"
-
-          # Previously proven cmdline 64-bit fix remains.
           grep -q 'unsigned long long' "$P"
           grep -q '~0ULL' "$P"
-
-          # V4.06: all YAFFS block-byte addresses that can cross 4 GiB are 64-bit.
           grep -q 'loff_t addr =' "$Y1"
           ! grep -q 'u32 addr =' "$Y1"
           test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
 
           {
-            echo '=== HWT101 V4.06 YAFFS64 USERDATA AUDIT ==='
+            echo '=== HWT101 V4.07A ADB ISOLATION AUDIT ==='
             echo BUILD=PASS
-            echo BASE=V4.05_ANDROID_RW_GUARD
-            echo HINAND_CONTROLLER=UNCHANGED_FROM_V405
-            echo PHYSICAL_WRITE_GUARD=UNCHANGED_FROM_V405
-            echo YAFFS_ERASE_ADDR=64BIT_LOFF_T
-            echo YAFFS_MARKBAD_ADDR=64BIT_LOFF_T
-            echo YAFFS_QUERY_BLOCK_ADDR=64BIT_LOFF_T
-            echo FIXES_4GIB_WRAP=YES
-            echo USERDATA_SIZE=0x143600000
-            echo USERDATA_BLOCKS=2587
-            echo DUPLICATE_BADBLOCK_DELTA_BLOCKS=2048
-            echo DUPLICATE_BADBLOCK_DELTA_BYTES=0x100000000
-            echo "ZIMAGE_SIZE=$(cat V406-SIZE.txt)"
-            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V406-SHA256.txt)"
-          } | tee V406-FINAL-AUDIT.txt
+            echo BASE=V4.06_YAFFS64
+            echo CHANGE=EXACT_KERNELRELEASE_ONLY
+            echo CONFIG_IDENTICAL_TO_V406=YES
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo TRAILING_PLUS=NO
+            echo BT_BUILTIN=YES_V406
+            echo CFG80211_BUILTIN=YES_V406
+            echo MAC80211_BUILTIN=NO_V406
+            echo TI_ST_BUILTIN=NO_V406
+            echo WIRELESS_EXT_BUILTIN=NO_V406
+            echo V405_WRITE_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo "ZIMAGE_SIZE=$(cat V407A-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V407A-SHA256.txt)"
+          } | tee V407A-FINAL-AUDIT.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: HWT101-V4.06-YAFFS64-USERDATA
+          name: HWT101-V4.07A-ADB-ISOLATION
           include-hidden-files: true
           path: |
-            HWT101-V4.06-*
+            HWT101-V4.07A-*
+            V407A-*.txt
             V400-*.txt
             V401-*.txt
             V405-*.txt
