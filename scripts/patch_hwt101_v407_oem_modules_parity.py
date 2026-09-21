@@ -32,10 +32,15 @@ set_n CFG80211
 set_n MAC80211
 set_y TI_ST
 set_n ST_HCI
+set_y WIRELESS_EXT
 set_v LOCALVERSION '"-g883717a-dirty"'
 set_n LOCALVERSION_AUTO
 
 make LOCALVERSION= oldnoconfig
+
+echo '===== V407 CONFIG AFTER OLDNOCONFIG ====='
+grep -E '^(CONFIG_|# CONFIG_)(BT|CFG80211|MAC80211|TI_ST|ST_HCI|WIRELESS_EXT|WEXT_CORE|RFKILL|LOCALVERSION)' .config || true
+echo '===== END V407 CONFIG ====='
 
 grep -qx '# CONFIG_BT is not set' .config
 grep -qx '# CONFIG_CFG80211 is not set' .config
