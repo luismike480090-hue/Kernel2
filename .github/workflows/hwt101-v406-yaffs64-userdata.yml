@@ -67,17 +67,7 @@ jobs:
           anchor="# Build.\npushd kernel >/dev/null\n"
           if anchor not in s:
               raise SystemExit('build anchor missing')
-          block=r"""# V4.07A: ADB isolation.
-# Preserve V4.06 kernel configuration exactly; only force exact OEM UTS_RELEASE.
-cp kernel/.config V407A-config-before.txt
-pushd kernel >/dev/null
-: > .scmversion
-KR="$(make -s LOCALVERSION= kernelrelease | tail -n1)"
-echo "V407A_KERNELRELEASE=$KR"
-test "$KR" = '3.0.8-g883717a-dirty'
-popd >/dev/null
-"""
-          s=s.replace(anchor, block+anchor, 1)
+          block = "# V4.07A: ADB isolation.\\n# Preserve V4.06 kernel configuration exactly; only force exact OEM UTS_RELEASE.\\ncp kernel/.config V407A-config-before.txt\\npushd kernel >/dev/null\\n: > .scmversion\\nKR=\\\"$(make -s LOCALVERSION= kernelrelease | tail -n1)\\\"\\necho \\\"V407A_KERNELRELEASE=$KR\\\"\\ntest \\\"$KR\\\" = '3.0.8-g883717a-dirty'\\npopd >/dev/null\\n"\n          s=s.replace(anchor, block+anchor, 1)
           if "make -j2 zImage" not in s:
               raise SystemExit('zImage build command missing')
           s=s.replace("make -j2 zImage", "make LOCALVERSION= -j2 zImage", 1)
