@@ -75,7 +75,7 @@ jobs:
           cp kernel/.config V407-kernel-config.txt
           sha256sum HWT101-V4.07-OEM-MODULES-PARITY-zImage | tee V407-SHA256.txt
           stat -c%s HWT101-V4.07-OEM-MODULES-PARITY-zImage | tee V407-SIZE.txt
-          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tee V407-KERNELRELEASE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407-KERNELRELEASE.txt
 
       - name: V4.07 static audit
         shell: bash
