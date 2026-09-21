@@ -1,10 +1,10 @@
-name: HWT101 V4.07B TI-ST ISOLATION
+name: HWT101 V4.07C BT-OFF ISOLATION
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - v407b-ti-st-isolation
+      - v407c-bt-off-isolation
     paths:
       - '.github/workflows/hwt101-v406-yaffs64-userdata.yml'
       - 'scripts/patch_hwt101_v406_yaffs64_userdata.py'
@@ -56,7 +56,7 @@ jobs:
           print('V406_DERIVATION=PASS')
           PY
 
-      - name: Apply exact OEM kernelrelease and ONLY TI-ST at final build
+      - name: Reproduce V4.07C state and toggle ONLY BT built-in off
         shell: bash
         run: |
           set -euo pipefail
@@ -68,42 +68,81 @@ jobs:
           if old not in s:
               raise SystemExit('zImage build command missing')
           new = "\n".join([
-              "cp .config ../V407B-config-v406-before.txt",
+              "cp .config ../V407C-config-v406-before.txt",
+
+              "# Reproduce physically-proven V4.07C state first.",
               "sed -i '/^# CONFIG_TI_ST is not set/d;/^CONFIG_TI_ST=/d' .config",
               "echo 'CONFIG_TI_ST=y' >> .config",
               "sed -i '/^# CONFIG_ST_HCI is not set/d;/^CONFIG_ST_HCI=/d' .config",
               "echo '# CONFIG_ST_HCI is not set' >> .config",
               ": > .scmversion",
               "make LOCALVERSION= oldnoconfig",
-              "cp .config ../V407B-config-final-prebuild.txt",
+              "grep -qx 'CONFIG_BT=y' .config",
+              "grep -qx 'CONFIG_CFG80211=y' .config",
               "grep -qx 'CONFIG_TI_ST=y' .config",
               "grep -qx '# CONFIG_ST_HCI is not set' .config",
+              "! grep -q '^CONFIG_WIRELESS_EXT=y$' .config",
+              "cp .config ../V407C-config-v407b-before-bt.txt",
+
+              "# V4.07C: change ONLY the Bluetooth core top-level switch.",
+              "sed -i '/^# CONFIG_BT is not set/d;/^CONFIG_BT=/d' .config",
+              "echo '# CONFIG_BT is not set' >> .config",
+              "make LOCALVERSION= oldnoconfig",
+              "cp .config ../V407C-config-final-prebuild.txt",
+              "grep -qx '# CONFIG_BT is not set' .config",
+              "grep -qx 'CONFIG_CFG80211=y' .config",
+              "grep -qx '# CONFIG_MAC80211 is not set' .config",
+              "grep -qx 'CONFIG_TI_ST=y' .config",
+              "grep -qx '# CONFIG_ST_HCI is not set' .config",
+              "! grep -q '^CONFIG_WIRELESS_EXT=y$' .config",
+
+              "# Ensure config changes are BT-family only.",
+              "python3 - <<'PYCFG'",
+              "from pathlib import Path",
+              "def parse(p):",
+              "    d={}",
+              "    for line in Path(p).read_text().splitlines():",
+              "        if line.startswith('CONFIG_') and '=' in line:",
+              "            k,v=line.split('=',1); d[k]=v",
+              "        elif line.startswith('# CONFIG_') and line.endswith(' is not set'):",
+              "            k=line[2:-11]; d[k]='n'",
+              "    return d",
+              "a=parse('../V407C-config-v407b-before-bt.txt')",
+              "b=parse('.config')",
+              "changed=[k for k in sorted(set(a)|set(b)) if a.get(k)!=b.get(k)]",
+              "Path('../V407C-CONFIG-DIFF.txt').write_text('\\n'.join(f'{k}: {a.get(k)} -> {b.get(k)}' for k in changed)+'\\n')",
+              "bad=[k for k in changed if not (k=='CONFIG_BT' or k.startswith('CONFIG_BT_'))]",
+              "print('CONFIG_CHANGED_COUNT=%d' % len(changed))",
+              "print('CONFIG_UNEXPECTED=%s' % (','.join(bad) if bad else 'NONE'))",
+              "if bad: raise SystemExit('Non-BT config changed: '+','.join(bad))",
+              "PYCFG",
+
               "KR=\"$(make -s LOCALVERSION= kernelrelease | tail -n1)\"",
-              "echo \"V407B_KERNELRELEASE=$KR\"",
+              "echo \"V407C_KERNELRELEASE=$KR\"",
               "test \"$KR\" = '3.0.8-g883717a-dirty'",
               "make LOCALVERSION= -j2 zImage"
           ])
           s=s.replace(old,new,1)
           pth.write_text(s)
-          print('V407B_PATCH=PASS')
-          print('BASE=V407A_ADB_PASS')
-          print('CHANGE=TI_ST_ONLY_AT_FINAL_BUILD')
+          print('V407C_PATCH=PASS')
+          print('BASE=V407C_TI_ST_HARDWARE_ADB_PASS')
+          print('CHANGE=CONFIG_BT_OFF_ONLY')
           PY
 
-      - name: Build V4.07B
+      - name: Build V4.07C
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/build_hwt101_v363_ntfs_prune.sh
-          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07B-TI-ST-ISOLATION-zImage
-          cp kernel/vmlinux HWT101-V4.07B-TI-ST-ISOLATION-vmlinux
-          cp kernel/System.map HWT101-V4.07B-TI-ST-ISOLATION-System.map
-          cp kernel/.config V407B-kernel-config.txt
-          sha256sum HWT101-V4.07B-TI-ST-ISOLATION-zImage | tee V407B-SHA256.txt
-          stat -c%s HWT101-V4.07B-TI-ST-ISOLATION-zImage | tee V407B-SIZE.txt
-          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407B-KERNELRELEASE.txt
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07C-BT-OFF-ISOLATION-zImage
+          cp kernel/vmlinux HWT101-V4.07C-BT-OFF-ISOLATION-vmlinux
+          cp kernel/System.map HWT101-V4.07C-BT-OFF-ISOLATION-System.map
+          cp kernel/.config V407C-kernel-config.txt
+          sha256sum HWT101-V4.07C-BT-OFF-ISOLATION-zImage | tee V407C-SHA256.txt
+          stat -c%s HWT101-V4.07C-BT-OFF-ISOLATION-zImage | tee V407C-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407C-KERNELRELEASE.txt
 
-      - name: V4.07B TI-ST isolation audit
+      - name: V4.07C BT-off isolation audit
         shell: bash
         run: |
           set -euo pipefail
@@ -114,11 +153,10 @@ jobs:
           Y1=kernel/fs/yaffs2/yaffs_mtdif.c
           Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
 
-          grep -qx '3.0.8-g883717a-dirty' V407B-KERNELRELEASE.txt
-          ! grep -q 'dirty+' V407B-KERNELRELEASE.txt
+          grep -qx '3.0.8-g883717a-dirty' V407C-KERNELRELEASE.txt
+          ! grep -q 'dirty+' V407C-KERNELRELEASE.txt
 
-          # V4.06 controls remain untouched except TI-ST.
-          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx '# CONFIG_BT is not set' "$C"
           grep -qx 'CONFIG_CFG80211=y' "$C"
           grep -qx '# CONFIG_MAC80211 is not set' "$C"
           grep -qx 'CONFIG_TI_ST=y' "$C"
@@ -127,9 +165,30 @@ jobs:
 
           grep -Eq ' [tT] st_register$' "$M"
           grep -Eq ' [tT] st_unregister$' "$M"
-          ! grep -Eq ' [tT] wireless_send_event$' "$M" || true
+          ! grep -Eq ' [tT] baswap$' "$M"
 
-          # Preserve V4.05/V4.06 storage work.
+          python3 - <<'PY'
+          from pathlib import Path
+          def parse(p):
+              d={}
+              for line in Path(p).read_text().splitlines():
+                  if line.startswith('CONFIG_') and '=' in line:
+                      k,v=line.split('=',1); d[k]=v
+                  elif line.startswith('# CONFIG_') and line.endswith(' is not set'):
+                      d[line[2:-11]]='n'
+              return d
+          a=parse('V407C-config-v407b-before-bt.txt')
+          b=parse('kernel/.config')
+          changed=[k for k in sorted(set(a)|set(b)) if a.get(k)!=b.get(k)]
+          bad=[k for k in changed if not (k=='CONFIG_BT' or k.startswith('CONFIG_BT_'))]
+          print('CHANGED=' + ','.join(changed))
+          print('UNEXPECTED=' + (','.join(bad) if bad else 'NONE'))
+          if 'CONFIG_BT' not in changed:
+              raise SystemExit('CONFIG_BT did not change')
+          if bad:
+              raise SystemExit('Unexpected config drift: '+','.join(bad))
+          PY
+
           grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
           grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
@@ -141,34 +200,37 @@ jobs:
           test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
 
           {
-            echo '=== HWT101 V4.07B TI-ST ISOLATION AUDIT ==='
+            echo '=== HWT101 V4.07C BT-OFF ISOLATION AUDIT ==='
             echo BUILD=PASS
-            echo BASE=V4.07A_ADB_PASS
-            echo CHANGE=TI_ST_ONLY
+            echo BASE=V4.07B_TI_ST_HARDWARE_ADB_PASS
+            echo CHANGE=CONFIG_BT_OFF_ONLY
+            echo CONFIG_DRIFT=BT_FAMILY_ONLY
             echo KERNELRELEASE=3.0.8-g883717a-dirty
             echo TRAILING_PLUS=NO
-            echo BT_BUILTIN=YES_V406
-            echo CFG80211_BUILTIN=YES_V406
-            echo MAC80211_BUILTIN=NO_V406
-            echo TI_ST_BUILTIN=YES
+            echo BT_BUILTIN=NO
+            echo CFG80211_BUILTIN=YES_V407B
+            echo MAC80211_BUILTIN=NO_V407B
+            echo TI_ST_BUILTIN=YES_V407B
             echo ST_HCI_BUILTIN=NO
-            echo WIRELESS_EXT_BUILTIN=NO_V406
+            echo WIRELESS_EXT_BUILTIN=NO_V407B
             echo SYMBOL_ST_REGISTER=YES
             echo SYMBOL_ST_UNREGISTER=YES
+            echo SYMBOL_BASWAP_KERNEL=NO
             echo V405_WRITE_GUARD=PRESERVED
             echo V406_YAFFS64=PRESERVED
-            echo "ZIMAGE_SIZE=$(cat V407B-SIZE.txt)"
-            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V407B-SHA256.txt)"
-          } | tee V407B-FINAL-AUDIT.txt
+            echo "ZIMAGE_SIZE=$(cat V407C-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V407C-SHA256.txt)"
+          } | tee V407C-FINAL-AUDIT.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: HWT101-V4.07B-TI-ST-ISOLATION
+          name: HWT101-V4.07C-BT-OFF-ISOLATION
           include-hidden-files: true
           path: |
-            HWT101-V4.07B-*
-            V407B-*.txt
+            HWT101-V4.07C-*
+            V407C-*.txt
+            V407C-CONFIG-DIFF.txt
             V400-*.txt
             V401-*.txt
             V405-*.txt
