@@ -69,10 +69,10 @@ jobs:
               raise SystemExit('zImage build command missing')
           new = "\\n".join([
               "cp .config ../V407B-config-v406-before.txt",
-              "set_y(){ sed -i \"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\" .config; echo \"CONFIG_$1=y\" >> .config; }",
-              "set_n(){ sed -i \"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\" .config; echo \"# CONFIG_$1 is not set\" >> .config; }",
-              "set_y TI_ST",
-              "set_n ST_HCI",
+              "sed -i '/^# CONFIG_TI_ST is not set/d;/^CONFIG_TI_ST=/d' .config",
+              "echo 'CONFIG_TI_ST=y' >> .config",
+              "sed -i '/^# CONFIG_ST_HCI is not set/d;/^CONFIG_ST_HCI=/d' .config",
+              "echo '# CONFIG_ST_HCI is not set' >> .config",
               ": > .scmversion",
               "make LOCALVERSION= oldnoconfig",
               "cp .config ../V407B-config-final-prebuild.txt",
