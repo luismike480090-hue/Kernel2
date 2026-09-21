@@ -54,3 +54,5 @@ print("BOARD_ID_K3OEM=0x00")
 print("PROFILE=config_common_k3oem")
 print("PRODUCT=k3oem")
 print("IOMUX_TYPE=0")
+
+# trigger V4.08 workflow
