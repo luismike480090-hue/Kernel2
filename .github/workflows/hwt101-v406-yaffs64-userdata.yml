@@ -56,7 +56,7 @@ jobs:
           print('V406_DERIVATION=PASS')
           PY
 
-      - name: Apply exact OEM kernelrelease and ONLY TI-ST
+      - name: Apply exact OEM kernelrelease and ONLY TI-ST at final build
         shell: bash
         run: |
           set -euo pipefail
@@ -64,18 +64,28 @@ jobs:
           from pathlib import Path
           pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
           s=pth.read_text()
-          anchor="# Build.\npushd kernel >/dev/null\n"
-          if anchor not in s:
-              raise SystemExit('build anchor missing')
-          block = "# V4.07B: TI-ST isolation.\\n# Preserve V4.06 behavior; change ONLY TI_ST/ST_HCI plus exact OEM kernelrelease.\\ncp kernel/.config ../V407B-config-v406-before.txt\\npushd kernel >/dev/null\\nset_y(){ sed -i \\\"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\\\" .config; echo \\\"CONFIG_$1=y\\\" >> .config; }\\nset_n(){ sed -i \\\"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\\\" .config; echo \\\"# CONFIG_$1 is not set\\\" >> .config; }\\nset_y TI_ST\\nset_n ST_HCI\\n: > .scmversion\\nmake LOCALVERSION= oldnoconfig\\ngrep -qx 'CONFIG_TI_ST=y' .config\\ngrep -qx '# CONFIG_ST_HCI is not set' .config\\nKR=\\\"$(make -s LOCALVERSION= kernelrelease | tail -n1)\\\"\\necho \\\"V407B_KERNELRELEASE=$KR\\\"\\ntest \\\"$KR\\\" = '3.0.8-g883717a-dirty'\\npopd >/dev/null\\n"
-          s=s.replace(anchor, block+anchor, 1)
-          if "make -j2 zImage" not in s:
+          old="make -j2 zImage"
+          if old not in s:
               raise SystemExit('zImage build command missing')
-          s=s.replace("make -j2 zImage", "make LOCALVERSION= -j2 zImage", 1)
+          new=r"""cp .config ../V407B-config-v406-before.txt
+set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+set_y TI_ST
+set_n ST_HCI
+: > .scmversion
+make LOCALVERSION= oldnoconfig
+cp .config ../V407B-config-final-prebuild.txt
+grep -qx 'CONFIG_TI_ST=y' .config
+grep -qx '# CONFIG_ST_HCI is not set' .config
+KR="$(make -s LOCALVERSION= kernelrelease | tail -n1)"
+echo "V407B_KERNELRELEASE=$KR"
+test "$KR" = '3.0.8-g883717a-dirty'
+make LOCALVERSION= -j2 zImage"""
+          s=s.replace(old,new,1)
           pth.write_text(s)
           print('V407B_PATCH=PASS')
-          print('BASE=V406_PLUS_EXACT_RELEASE')
-          print('CHANGE=TI_ST_ONLY')
+          print('BASE=V407A_ADB_PASS')
+          print('CHANGE=TI_ST_ONLY_AT_FINAL_BUILD')
           PY
 
       - name: Build V4.07B
@@ -83,12 +93,12 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/build_hwt101_v363_ntfs_prune.sh
-          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07B-ADB-ISOLATION-zImage
-          cp kernel/vmlinux HWT101-V4.07B-ADB-ISOLATION-vmlinux
-          cp kernel/System.map HWT101-V4.07B-ADB-ISOLATION-System.map
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07B-TI-ST-ISOLATION-zImage
+          cp kernel/vmlinux HWT101-V4.07B-TI-ST-ISOLATION-vmlinux
+          cp kernel/System.map HWT101-V4.07B-TI-ST-ISOLATION-System.map
           cp kernel/.config V407B-kernel-config.txt
-          sha256sum HWT101-V4.07B-ADB-ISOLATION-zImage | tee V407B-SHA256.txt
-          stat -c%s HWT101-V4.07B-ADB-ISOLATION-zImage | tee V407B-SIZE.txt
+          sha256sum HWT101-V4.07B-TI-ST-ISOLATION-zImage | tee V407B-SHA256.txt
+          stat -c%s HWT101-V4.07B-TI-ST-ISOLATION-zImage | tee V407B-SIZE.txt
           make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407B-KERNELRELEASE.txt
 
       - name: V4.07B TI-ST isolation audit
