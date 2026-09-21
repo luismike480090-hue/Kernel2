@@ -14,8 +14,8 @@ python3 - <<'PY2'
 from pathlib import Path
 p = Path('kernel/net/wireless/Kconfig')
 s = p.read_text()
-old = 'config WIRELESS_EXT\\n\\tbool\\n'
-new = 'config WIRELESS_EXT\\n\\tbool\\n\\tdefault y\\n'
+old = 'config WIRELESS_EXT\n\tbool\n'
+new = 'config WIRELESS_EXT\n\tbool\n\tdefault y\n'
 if old not in s:
     raise SystemExit('WIRELESS_EXT Kconfig anchor missing')
 p.write_text(s.replace(old, new, 1))
