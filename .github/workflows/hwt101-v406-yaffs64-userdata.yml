@@ -67,20 +67,22 @@ jobs:
           old="make -j2 zImage"
           if old not in s:
               raise SystemExit('zImage build command missing')
-          new=r"""cp .config ../V407B-config-v406-before.txt
-set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
-set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
-set_y TI_ST
-set_n ST_HCI
-: > .scmversion
-make LOCALVERSION= oldnoconfig
-cp .config ../V407B-config-final-prebuild.txt
-grep -qx 'CONFIG_TI_ST=y' .config
-grep -qx '# CONFIG_ST_HCI is not set' .config
-KR="$(make -s LOCALVERSION= kernelrelease | tail -n1)"
-echo "V407B_KERNELRELEASE=$KR"
-test "$KR" = '3.0.8-g883717a-dirty'
-make LOCALVERSION= -j2 zImage"""
+          new = "\\n".join([
+              "cp .config ../V407B-config-v406-before.txt",
+              "set_y(){ sed -i \"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\" .config; echo \"CONFIG_$1=y\" >> .config; }",
+              "set_n(){ sed -i \"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\" .config; echo \"# CONFIG_$1 is not set\" >> .config; }",
+              "set_y TI_ST",
+              "set_n ST_HCI",
+              ": > .scmversion",
+              "make LOCALVERSION= oldnoconfig",
+              "cp .config ../V407B-config-final-prebuild.txt",
+              "grep -qx 'CONFIG_TI_ST=y' .config",
+              "grep -qx '# CONFIG_ST_HCI is not set' .config",
+              "KR=\"$(make -s LOCALVERSION= kernelrelease | tail -n1)\"",
+              "echo \"V407B_KERNELRELEASE=$KR\"",
+              "test \"$KR\" = '3.0.8-g883717a-dirty'",
+              "make LOCALVERSION= -j2 zImage"
+          ])
           s=s.replace(old,new,1)
           pth.write_text(s)
           print('V407B_PATCH=PASS')
