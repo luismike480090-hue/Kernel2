@@ -67,7 +67,7 @@ jobs:
           old="make -j2 zImage"
           if old not in s:
               raise SystemExit('zImage build command missing')
-          new = "\\n".join([
+          new = "\n".join([
               "cp .config ../V407B-config-v406-before.txt",
               "sed -i '/^# CONFIG_TI_ST is not set/d;/^CONFIG_TI_ST=/d' .config",
               "echo 'CONFIG_TI_ST=y' >> .config",
