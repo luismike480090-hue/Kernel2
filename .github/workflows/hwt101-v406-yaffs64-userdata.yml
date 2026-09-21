@@ -1,12 +1,11 @@
-name: HWT101 V4.06 YAFFS64 USERDATA
+name: HWT101 V4.07 OEM MODULES PARITY
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - v406-yaffs64-userdata
+      - v407-oem-modules-parity
     paths:
-      - 'scripts/patch_hwt101_v406_yaffs64_userdata.py'
       - '.github/workflows/hwt101-v406-yaffs64-userdata.yml'
 
 jobs:
@@ -24,7 +23,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
 
-      - name: Reproduce V4.05 and add YAFFS64 fix
+      - name: Reproduce exact V4.06 baseline
         shell: bash
         run: |
           set -euo pipefail
@@ -58,80 +57,151 @@ jobs:
           print('CHANGE=YAFFS_64BIT_BLOCK_BYTE_OFFSETS_ONLY')
           PY
 
-      - name: Build V4.06 kernel
+      - name: Add V4.07 OEM module ABI parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          pth = Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s = pth.read_text()
+          anchor = '# Build.\npushd kernel >/dev/null\n'
+          if anchor not in s:
+              raise SystemExit('build anchor missing')
+
+          parity = r'''# V4.07 OEM module ABI parity.
+# FIX10 loads compat/bluetooth/cfg80211/mac80211/wlcore/wl18xx from /system as modules.
+# Keep TI shared transport and legacy WEXT provider built into the kernel.
+python3 - <<'PY2'
+from pathlib import Path
+p = Path('kernel/net/wireless/Kconfig')
+s = p.read_text()
+old = 'config WIRELESS_EXT\n\tbool\n'
+new = 'config WIRELESS_EXT\n\tbool\n\tdefault y\n'
+if old not in s:
+    raise SystemExit('WIRELESS_EXT Kconfig anchor missing')
+p.write_text(s.replace(old, new, 1))
+print('V407_WIRELESS_EXT_DEFAULT_Y=PASS')
+PY2
+
+pushd kernel >/dev/null
+set_y(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=y" >> .config; }
+set_n(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "# CONFIG_$1 is not set" >> .config; }
+set_v(){ sed -i "/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d" .config; echo "CONFIG_$1=$2" >> .config; }
+
+set_n BT
+set_n CFG80211
+set_n MAC80211
+set_y TI_ST
+set_n ST_HCI
+set_v LOCALVERSION '"-g883717a-dirty"'
+set_n LOCALVERSION_AUTO
+
+make LOCALVERSION= oldnoconfig
+
+grep -qx '# CONFIG_BT is not set' .config
+grep -qx '# CONFIG_CFG80211 is not set' .config
+grep -qx '# CONFIG_MAC80211 is not set' .config
+grep -qx 'CONFIG_TI_ST=y' .config
+grep -qx 'CONFIG_WIRELESS_EXT=y' .config
+grep -qx 'CONFIG_WEXT_CORE=y' .config
+grep -qx 'CONFIG_LOCALVERSION="-g883717a-dirty"' .config
+grep -qx '# CONFIG_LOCALVERSION_AUTO is not set' .config
+
+: > .scmversion
+KR="$(make -s LOCALVERSION= kernelrelease)"
+echo "V407_KERNELRELEASE=$KR"
+test "$KR" = '3.0.8-g883717a-dirty'
+popd >/dev/null
+
+'''
+          s = s.replace(anchor, parity + anchor, 1)
+          if 'make -j2 zImage' not in s:
+              raise SystemExit('zImage build command missing')
+          s = s.replace('make -j2 zImage', 'make LOCALVERSION= -j2 zImage', 1)
+          pth.write_text(s)
+          print('V407_DERIVATION=PASS')
+          PY
+
+      - name: Build V4.07
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/build_hwt101_v363_ntfs_prune.sh
-          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.06-YAFFS64-USERDATA-zImage
-          cp kernel/vmlinux HWT101-V4.06-YAFFS64-USERDATA-vmlinux
-          cp kernel/System.map HWT101-V4.06-YAFFS64-USERDATA-System.map
-          cp kernel/.config V406-kernel-config.txt
-          sha256sum HWT101-V4.06-YAFFS64-USERDATA-zImage | tee V406-SHA256.txt
-          stat -c%s HWT101-V4.06-YAFFS64-USERDATA-zImage | tee V406-SIZE.txt
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07-OEM-MODULES-PARITY-zImage
+          cp kernel/vmlinux HWT101-V4.07-OEM-MODULES-PARITY-vmlinux
+          cp kernel/System.map HWT101-V4.07-OEM-MODULES-PARITY-System.map
+          cp kernel/.config V407-kernel-config.txt
+          sha256sum HWT101-V4.07-OEM-MODULES-PARITY-zImage | tee V407-SHA256.txt
+          stat -c%s HWT101-V4.07-OEM-MODULES-PARITY-zImage | tee V407-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tee V407-KERNELRELEASE.txt
 
-      - name: V4.06 static audit
+      - name: V4.07 static audit
         shell: bash
         run: |
           set -euo pipefail
-          H=kernel/drivers/mtd/nand/hinand_hwt101.c
           C=kernel/.config
+          M=kernel/System.map
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
           P=kernel/drivers/mtd/cmdlinepart.c
           Y1=kernel/fs/yaffs2/yaffs_mtdif.c
           Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
 
-          grep -qx 'CONFIG_YAFFS_FS=y' "$C"
-          grep -qx 'CONFIG_YAFFS_YAFFS2=y' "$C"
-          grep -qx 'CONFIG_YAFFS_DISABLE_TAGS_ECC=y' "$C"
-          grep -qx 'CONFIG_YAFFS_EMPTY_LOST_AND_FOUND=y' "$C"
+          grep -qx '3.0.8-g883717a-dirty' V407-KERNELRELEASE.txt
+          ! grep -q 'dirty+' V407-KERNELRELEASE.txt
+          grep -qx '# CONFIG_BT is not set' "$C"
+          grep -qx '# CONFIG_CFG80211 is not set' "$C"
+          grep -qx '# CONFIG_MAC80211 is not set' "$C"
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx 'CONFIG_WIRELESS_EXT=y' "$C"
+          grep -qx 'CONFIG_WEXT_CORE=y' "$C"
+          grep -Eq ' [tT] st_register$' "$M"
+          grep -Eq ' [tT] st_unregister$' "$M"
+          grep -Eq ' [tT] wireless_send_event$' "$M"
+          ! grep -Eq ' [tT] baswap$' "$M"
 
-          # V4.05 controller and physical write guard must be unchanged.
           grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
           grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
-          grep -q 'nfc_write(h,0x1080,NFC_CMD)' "$H"
-          grep -q 'nfc_write(h,0x23,NFC_DMA_CTRL)' "$H"
-          grep -q 'nfc_write(h,0xd060,NFC_CMD)' "$H"
-          grep -q '.offset = 2, .length = 30' "$H"
-
-          # Previously proven cmdline 64-bit fix remains.
           grep -q 'unsigned long long' "$P"
           grep -q '~0ULL' "$P"
-
-          # V4.06: all YAFFS block-byte addresses that can cross 4 GiB are 64-bit.
           grep -q 'loff_t addr =' "$Y1"
           ! grep -q 'u32 addr =' "$Y1"
           test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
 
           {
-            echo '=== HWT101 V4.06 YAFFS64 USERDATA AUDIT ==='
+            echo '=== HWT101 V4.07 OEM MODULES PARITY AUDIT ==='
             echo BUILD=PASS
-            echo BASE=V4.05_ANDROID_RW_GUARD
-            echo HINAND_CONTROLLER=UNCHANGED_FROM_V405
-            echo PHYSICAL_WRITE_GUARD=UNCHANGED_FROM_V405
-            echo YAFFS_ERASE_ADDR=64BIT_LOFF_T
-            echo YAFFS_MARKBAD_ADDR=64BIT_LOFF_T
-            echo YAFFS_QUERY_BLOCK_ADDR=64BIT_LOFF_T
-            echo FIXES_4GIB_WRAP=YES
-            echo USERDATA_SIZE=0x143600000
-            echo USERDATA_BLOCKS=2587
-            echo DUPLICATE_BADBLOCK_DELTA_BLOCKS=2048
-            echo DUPLICATE_BADBLOCK_DELTA_BYTES=0x100000000
-            echo "ZIMAGE_SIZE=$(cat V406-SIZE.txt)"
-            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V406-SHA256.txt)"
-          } | tee V406-FINAL-AUDIT.txt
+            echo BASE=V4.06_YAFFS64
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo TRAILING_PLUS=NO
+            echo BT_BUILTIN=NO
+            echo CFG80211_BUILTIN=NO
+            echo MAC80211_BUILTIN=NO
+            echo TI_ST_BUILTIN=YES
+            echo WIRELESS_EXT_BUILTIN=YES
+            echo SYMBOL_ST_REGISTER=YES
+            echo SYMBOL_ST_UNREGISTER=YES
+            echo SYMBOL_WIRELESS_SEND_EVENT=YES
+            echo V405_WRITE_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo "ZIMAGE_SIZE=$(cat V407-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V407-SHA256.txt)"
+          } | tee V407-FINAL-AUDIT.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: HWT101-V4.06-YAFFS64-USERDATA
+          name: HWT101-V4.07-OEM-MODULES-PARITY
           include-hidden-files: true
           path: |
-            HWT101-V4.06-*
+            HWT101-V4.07-*
             V400-*.txt
             V401-*.txt
             V405-*.txt
             V406-*.txt
+            V407-*.txt
             kernel/.config
             kernel/System.map
             kernel/fs/yaffs2/yaffs_mtdif.c
