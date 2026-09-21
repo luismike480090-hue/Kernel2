@@ -44,7 +44,31 @@ echo '===== END V407 CONFIG ====='
 
 grep -qx '# CONFIG_BT is not set' .config
 grep -qx '# CONFIG_CFG80211 is not set' .config
-grep -qx '# CONFIG_MAC80211 is not set' .config
+! grep -Eq '^CONFIG_MAC80211=[ym]grep -qx 'CONFIG_TI_ST=y' .config
+grep -qx 'CONFIG_WIRELESS_EXT=y' .config
+grep -qx 'CONFIG_WEXT_CORE=y' .config
+grep -qx 'CONFIG_LOCALVERSION="-g883717a-dirty"' .config
+grep -qx '# CONFIG_LOCALVERSION_AUTO is not set' .config
+
+: > .scmversion
+KR="$(make -s LOCALVERSION= kernelrelease)"
+echo "V407_KERNELRELEASE=$KR"
+test "$KR" = '3.0.8-g883717a-dirty'
+popd >/dev/null
+
+"""
+
+s = s.replace(anchor, parity + anchor, 1)
+
+if "make -j2 zImage" not in s:
+    raise SystemExit("zImage build command missing")
+s = s.replace("make -j2 zImage", "make LOCALVERSION= -j2 zImage", 1)
+
+pth.write_text(s)
+print("V407_DERIVATION=PASS")
+print("BASE=V4.06_YAFFS64")
+print("CHANGE=OEM_MODULE_ABI_PARITY_PLUS_EXACT_UTS_RELEASE")
+ .config
 grep -qx 'CONFIG_TI_ST=y' .config
 grep -qx 'CONFIG_WIRELESS_EXT=y' .config
 grep -qx 'CONFIG_WEXT_CORE=y' .config
