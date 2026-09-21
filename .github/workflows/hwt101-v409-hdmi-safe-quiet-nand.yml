@@ -1,0 +1,144 @@
+name: HWT101 V4.09 HDMI SAFE QUIET NAND
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v409-hdmi-safe-quiet-nand
+    paths:
+      - '.github/workflows/hwt101-v409-hdmi-safe-quiet-nand.yml'
+      - 'scripts/patch_hwt101_v409_hdmi_safe_quiet_nand.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V4.07B derivation and add V4.09
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v406-yaffs64-userdata.yml').read_text()
+
+          def run_step(name):
+              marker=f'      - name: {name}\n'
+              p=wf.find(marker)
+              if p < 0: raise SystemExit(f'missing step: {name}')
+              r=wf.find('        run: |\n',p)
+              if r < 0: raise SystemExit(f'missing run block: {name}')
+              r += len('        run: |\n')
+              e=wf.find('\n      - name:',r)
+              if e < 0: e=wf.find('\n      - uses:',r)
+              if e < 0: raise SystemExit(f'missing end: {name}')
+              lines=[]
+              for line in wf[r:e].splitlines():
+                  lines.append(line[10:] if line.startswith('          ') else line)
+              subprocess.run('\n'.join(lines)+'\n',shell=True,executable='/bin/bash',check=True)
+
+          run_step('Reproduce exact V4.06 baseline')
+          run_step('Apply exact OEM kernelrelease and ONLY TI-ST at final build')
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v406_yaffs64_userdata.py kernel | tee V406-YAFFS64-USERDATA.txt\n'
+          if anchor not in s:
+              raise SystemExit('V406 patch invocation anchor missing')
+          s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v409_hdmi_safe_quiet_nand.py kernel | tee V409-PATCH.txt\n',1)
+          pth.write_text(s)
+          print('V409_DERIVATION=PASS')
+          print('BASE=EXACT_V407B_HARDWARE_PASS')
+          print('CHANGE=HDMI_NULL_GUARD_PLUS_QUIET_NAND_ONLY')
+          PY
+
+      - name: Build V4.09
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.09-HDMI-SAFE-QUIET-NAND-zImage
+          cp kernel/vmlinux HWT101-V4.09-HDMI-SAFE-QUIET-NAND-vmlinux
+          cp kernel/System.map HWT101-V4.09-HDMI-SAFE-QUIET-NAND-System.map
+          cp kernel/.config V409-kernel-config.txt
+          sha256sum HWT101-V4.09-HDMI-SAFE-QUIET-NAND-zImage | tee V409-SHA256.txt
+          stat -c%s HWT101-V4.09-HDMI-SAFE-QUIET-NAND-zImage | tee V409-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V409-KERNELRELEASE.txt
+
+      - name: V4.09 audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          C=kernel/.config
+          M=kernel/System.map
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+          D=kernel/drivers/video/k3/hdmi/k3_hdmi_hw.c
+
+          grep -qx '3.0.8-g883717a-dirty' V409-KERNELRELEASE.txt
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx '# CONFIG_ST_HCI is not set' "$C"
+          grep -Eq ' [tT] st_register$' "$M"
+          grep -Eq ' [tT] st_unregister$' "$M"
+
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK PAGEPROG' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK ERASE2' "$H"
+          ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
+          ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
+
+          grep -q 'loff_t addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+
+          grep -q 'HDMI resources incomplete; skip power-on safely.' "$D"
+          grep -q 'HDMI resources incomplete; skip power-off safely.' "$D"
+
+          {
+            echo '=== HWT101 V4.09 FINAL AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=V4.07B_HARDWARE_PASS
+            echo HDMI_NULL_GUARD=YES
+            echo NAND_ALLOW_LOGGING=REMOVED
+            echo NAND_BLOCK_GUARD=PRESERVED
+            echo V405_WRITE_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo TI_ST=PRESERVED
+            echo K3OEM_V408_PROFILE=NOT_USED
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo "ZIMAGE_SIZE=$(cat V409-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V409-SHA256.txt)"
+          } | tee V409-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HWT101-V4.09-HDMI-SAFE-QUIET-NAND
+          include-hidden-files: true
+          path: |
+            HWT101-V4.09-*
+            V409-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/fs/yaffs2/yaffs_mtdif.c
+            kernel/fs/yaffs2/yaffs_mtdif2.c
+            kernel/drivers/video/k3/hdmi/k3_hdmi_hw.c
+          if-no-files-found: error
