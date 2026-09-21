@@ -110,7 +110,8 @@ jobs:
           grep -qx '# CONFIG_TI_ST is not set' "$C"
           ! grep -q '^CONFIG_WIRELESS_EXT=y$' "$C"
 
-          cmp -s V407A-config-before.txt "$C"
+          sha256sum "$C" | tee V407A-CONFIG-SHA256.txt
+          grep -qx '24c2fc8559a6f3676039925b1a1d66c20ad47a00fbab5485cabb339284f423b3  kernel/.config' V407A-CONFIG-SHA256.txt
 
           # Preserve V4.05/V4.06 storage work.
           grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
@@ -143,6 +144,7 @@ jobs:
           } | tee V407A-FINAL-AUDIT.txt
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: HWT101-V4.07A-ADB-ISOLATION
           include-hidden-files: true
