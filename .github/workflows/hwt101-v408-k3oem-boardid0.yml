@@ -1,0 +1,153 @@
+name: HWT101 V4.08 K3OEM BOARDID0
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v408-k3oem-boardid0
+    paths:
+      - '.github/workflows/hwt101-v408-k3oem-boardid0.yml'
+      - 'scripts/patch_hwt101_v408_k3oem_boardid0.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl
+
+      - name: Reproduce exact V4.07B derivation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v406-yaffs64-userdata.yml').read_text()
+
+          def run_step(name):
+              marker = f'      - name: {name}\n'
+              p = wf.find(marker)
+              if p < 0:
+                  raise SystemExit(f'missing step: {name}')
+              r = wf.find('        run: |\n', p)
+              if r < 0:
+                  raise SystemExit(f'missing run block: {name}')
+              r += len('        run: |\n')
+              e = wf.find('\n      - name:', r)
+              if e < 0:
+                  e = wf.find('\n      - uses:', r)
+              if e < 0:
+                  raise SystemExit(f'missing end of step: {name}')
+              lines=[]
+              for line in wf[r:e].splitlines():
+                  lines.append(line[10:] if line.startswith('          ') else line)
+              subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          run_step('Reproduce exact V4.06 baseline')
+          run_step('Apply exact OEM kernelrelease and ONLY TI-ST at final build')
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v406_yaffs64_userdata.py kernel | tee V406-YAFFS64-USERDATA.txt\n'
+          if anchor not in s:
+              raise SystemExit('V406 patch invocation anchor missing')
+          inject=anchor+'python3 scripts/patch_hwt101_v408_k3oem_boardid0.py kernel | tee V408-K3OEM-BOARDID0.txt\n'
+          s=s.replace(anchor, inject, 1)
+          pth.write_text(s)
+          print('V408_DERIVATION=PASS')
+          print('BASE=V407B_TI_ST_HARDWARE_PASS')
+          print('CHANGE=RESTORE_K3OEM_BOARDID0_ONLY')
+          PY
+
+      - name: Build V4.08
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.08-K3OEM-BOARDID0-zImage
+          cp kernel/vmlinux HWT101-V4.08-K3OEM-BOARDID0-vmlinux
+          cp kernel/System.map HWT101-V4.08-K3OEM-BOARDID0-System.map
+          cp kernel/.config V408-kernel-config.txt
+          sha256sum HWT101-V4.08-K3OEM-BOARDID0-zImage | tee V408-SHA256.txt
+          stat -c%s HWT101-V4.08-K3OEM-BOARDID0-zImage | tee V408-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V408-KERNELRELEASE.txt
+
+      - name: V4.08 audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          C=kernel/.config
+          M=kernel/System.map
+          T=kernel/drivers/huawei/hsad/config_total_product.c
+          B=kernel/include/hsad/config_boardids.h
+          K=kernel/drivers/huawei/hsad/auto-generate/hw_k3oem_configs.c
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+
+          grep -qx '3.0.8-g883717a-dirty' V408-KERNELRELEASE.txt
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx '# CONFIG_ST_HCI is not set' "$C"
+
+          grep -qx '#define BOARD_ID_K3OEM 0x00' "$B"
+          grep -q 'auto-generate/hw_k3oem_configs.c' "$T"
+          grep -q '&config_common_k3oem' "$T"
+          grep -q '.board_id=BOARD_ID_K3OEM' "$K"
+          grep -q '"product/name".*"k3oem"' "$K"
+          grep -q '"iomux/iomux_type", (unsigned int)0' "$K"
+
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'loff_t addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+
+          grep -Eq ' [tT] st_register$' "$M"
+          grep -Eq ' [tT] st_unregister$' "$M"
+
+          {
+            echo '=== HWT101 V4.08 K3OEM BOARDID0 ==='
+            echo BUILD=PASS
+            echo BASE=V4.07B
+            echo BOARD_ID_K3OEM=0x00
+            echo PROFILE_K3OEM=REGISTERED
+            echo PRODUCT_K3OEM=YES
+            echo IOMUX_TYPE=0
+            echo TI_ST=PRESERVED
+            echo V405_WRITE_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo "ZIMAGE_SIZE=$(cat V408-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V408-SHA256.txt)"
+          } | tee V408-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HWT101-V4.08-K3OEM-BOARDID0
+          include-hidden-files: true
+          path: |
+            HWT101-V4.08-*
+            V408-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/drivers/huawei/hsad/config_total_product.c
+            kernel/drivers/huawei/hsad/auto-generate/hw_k3oem_configs.c
+            kernel/include/hsad/config_boardids.h
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/fs/yaffs2/yaffs_mtdif.c
+            kernel/fs/yaffs2/yaffs_mtdif2.c
+          if-no-files-found: error
