@@ -1,10 +1,10 @@
-name: HWT101 V4.07A ADB ISOLATION
+name: HWT101 V4.07B TI-ST ISOLATION
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - v407a-adb-isolation
+      - v407b-ti-st-isolation
     paths:
       - '.github/workflows/hwt101-v406-yaffs64-userdata.yml'
       - 'scripts/patch_hwt101_v406_yaffs64_userdata.py'
@@ -56,7 +56,7 @@ jobs:
           print('V406_DERIVATION=PASS')
           PY
 
-      - name: Apply ONLY exact OEM kernelrelease
+      - name: Apply exact OEM kernelrelease and ONLY TI-ST
         shell: bash
         run: |
           set -euo pipefail
@@ -67,51 +67,55 @@ jobs:
           anchor="# Build.\npushd kernel >/dev/null\n"
           if anchor not in s:
               raise SystemExit('build anchor missing')
-          block = "# V4.07A: ADB isolation.\\n# Preserve V4.06 kernel configuration exactly; only force exact OEM UTS_RELEASE.\\ncp kernel/.config V407A-config-before.txt\\npushd kernel >/dev/null\\n: > .scmversion\\nKR=\\\"$(make -s LOCALVERSION= kernelrelease | tail -n1)\\\"\\necho \\\"V407A_KERNELRELEASE=$KR\\\"\\ntest \\\"$KR\\\" = '3.0.8-g883717a-dirty'\\npopd >/dev/null\\n"
+          block = "# V4.07B: TI-ST isolation.\\n# Preserve V4.06 behavior; change ONLY TI_ST/ST_HCI plus exact OEM kernelrelease.\\ncp kernel/.config ../V407B-config-v406-before.txt\\npushd kernel >/dev/null\\nset_y(){ sed -i \\\"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\\\" .config; echo \\\"CONFIG_$1=y\\\" >> .config; }\\nset_n(){ sed -i \\\"/^# CONFIG_$1 is not set/d;/^CONFIG_$1=/d\\\" .config; echo \\\"# CONFIG_$1 is not set\\\" >> .config; }\\nset_y TI_ST\\nset_n ST_HCI\\n: > .scmversion\\nmake LOCALVERSION= oldnoconfig\\ngrep -qx 'CONFIG_TI_ST=y' .config\\ngrep -qx '# CONFIG_ST_HCI is not set' .config\\nKR=\\\"$(make -s LOCALVERSION= kernelrelease | tail -n1)\\\"\\necho \\\"V407B_KERNELRELEASE=$KR\\\"\\ntest \\\"$KR\\\" = '3.0.8-g883717a-dirty'\\npopd >/dev/null\\n"
           s=s.replace(anchor, block+anchor, 1)
           if "make -j2 zImage" not in s:
               raise SystemExit('zImage build command missing')
           s=s.replace("make -j2 zImage", "make LOCALVERSION= -j2 zImage", 1)
           pth.write_text(s)
-          print('V407A_PATCH=PASS')
-          print('CHANGE=EXACT_KERNELRELEASE_ONLY')
+          print('V407B_PATCH=PASS')
+          print('BASE=V406_PLUS_EXACT_RELEASE')
+          print('CHANGE=TI_ST_ONLY')
           PY
 
-      - name: Build V4.07A
+      - name: Build V4.07B
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/build_hwt101_v363_ntfs_prune.sh
-          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07A-ADB-ISOLATION-zImage
-          cp kernel/vmlinux HWT101-V4.07A-ADB-ISOLATION-vmlinux
-          cp kernel/System.map HWT101-V4.07A-ADB-ISOLATION-System.map
-          cp kernel/.config V407A-kernel-config.txt
-          sha256sum HWT101-V4.07A-ADB-ISOLATION-zImage | tee V407A-SHA256.txt
-          stat -c%s HWT101-V4.07A-ADB-ISOLATION-zImage | tee V407A-SIZE.txt
-          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407A-KERNELRELEASE.txt
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.07B-ADB-ISOLATION-zImage
+          cp kernel/vmlinux HWT101-V4.07B-ADB-ISOLATION-vmlinux
+          cp kernel/System.map HWT101-V4.07B-ADB-ISOLATION-System.map
+          cp kernel/.config V407B-kernel-config.txt
+          sha256sum HWT101-V4.07B-ADB-ISOLATION-zImage | tee V407B-SHA256.txt
+          stat -c%s HWT101-V4.07B-ADB-ISOLATION-zImage | tee V407B-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V407B-KERNELRELEASE.txt
 
-      - name: V4.07A hard isolation audit
+      - name: V4.07B TI-ST isolation audit
         shell: bash
         run: |
           set -euo pipefail
           C=kernel/.config
+          M=kernel/System.map
           H=kernel/drivers/mtd/nand/hinand_hwt101.c
           P=kernel/drivers/mtd/cmdlinepart.c
           Y1=kernel/fs/yaffs2/yaffs_mtdif.c
           Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
 
-          grep -qx '3.0.8-g883717a-dirty' V407A-KERNELRELEASE.txt
-          ! grep -q 'dirty+' V407A-KERNELRELEASE.txt
+          grep -qx '3.0.8-g883717a-dirty' V407B-KERNELRELEASE.txt
+          ! grep -q 'dirty+' V407B-KERNELRELEASE.txt
 
-          # These MUST remain exactly as V4.06 working C3R3 kernel.
+          # V4.06 controls remain untouched except TI-ST.
           grep -qx 'CONFIG_BT=y' "$C"
           grep -qx 'CONFIG_CFG80211=y' "$C"
           grep -qx '# CONFIG_MAC80211 is not set' "$C"
-          grep -qx '# CONFIG_TI_ST is not set' "$C"
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx '# CONFIG_ST_HCI is not set' "$C"
           ! grep -q '^CONFIG_WIRELESS_EXT=y$' "$C"
 
-          sha256sum "$C" | tee V407A-CONFIG-SHA256.txt
-          grep -qx '24c2fc8559a6f3676039925b1a1d66c20ad47a00fbab5485cabb339284f423b3  kernel/.config' V407A-CONFIG-SHA256.txt
+          grep -Eq ' [tT] st_register$' "$M"
+          grep -Eq ' [tT] st_unregister$' "$M"
+          ! grep -Eq ' [tT] wireless_send_event$' "$M" || true
 
           # Preserve V4.05/V4.06 storage work.
           grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
@@ -125,32 +129,34 @@ jobs:
           test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
 
           {
-            echo '=== HWT101 V4.07A ADB ISOLATION AUDIT ==='
+            echo '=== HWT101 V4.07B TI-ST ISOLATION AUDIT ==='
             echo BUILD=PASS
-            echo BASE=V4.06_YAFFS64
-            echo CHANGE=EXACT_KERNELRELEASE_ONLY
-            echo CONFIG_IDENTICAL_TO_V406=YES
+            echo BASE=V4.07A_ADB_PASS
+            echo CHANGE=TI_ST_ONLY
             echo KERNELRELEASE=3.0.8-g883717a-dirty
             echo TRAILING_PLUS=NO
             echo BT_BUILTIN=YES_V406
             echo CFG80211_BUILTIN=YES_V406
             echo MAC80211_BUILTIN=NO_V406
-            echo TI_ST_BUILTIN=NO_V406
+            echo TI_ST_BUILTIN=YES
+            echo ST_HCI_BUILTIN=NO
             echo WIRELESS_EXT_BUILTIN=NO_V406
+            echo SYMBOL_ST_REGISTER=YES
+            echo SYMBOL_ST_UNREGISTER=YES
             echo V405_WRITE_GUARD=PRESERVED
             echo V406_YAFFS64=PRESERVED
-            echo "ZIMAGE_SIZE=$(cat V407A-SIZE.txt)"
-            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V407A-SHA256.txt)"
-          } | tee V407A-FINAL-AUDIT.txt
+            echo "ZIMAGE_SIZE=$(cat V407B-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V407B-SHA256.txt)"
+          } | tee V407B-FINAL-AUDIT.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: HWT101-V4.07A-ADB-ISOLATION
+          name: HWT101-V4.07B-TI-ST-ISOLATION
           include-hidden-files: true
           path: |
-            HWT101-V4.07A-*
-            V407A-*.txt
+            HWT101-V4.07B-*
+            V407B-*.txt
             V400-*.txt
             V401-*.txt
             V405-*.txt
