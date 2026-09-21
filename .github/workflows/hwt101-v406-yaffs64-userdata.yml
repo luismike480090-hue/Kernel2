@@ -92,7 +92,8 @@ jobs:
           ! grep -q 'dirty+' V407-KERNELRELEASE.txt
           grep -qx '# CONFIG_BT is not set' "$C"
           grep -qx '# CONFIG_CFG80211 is not set' "$C"
-          ! grep -Eq '^CONFIG_MAC80211=[ym]          grep -qx 'CONFIG_TI_ST=y' "$C"
+          ! grep -Eq '^CONFIG_MAC80211=[ym]$' "$C"
+          grep -qx 'CONFIG_TI_ST=y' "$C"
           grep -qx 'CONFIG_WIRELESS_EXT=y' "$C"
           grep -qx 'CONFIG_WEXT_CORE=y' "$C"
           grep -Eq ' [tT] st_register$' "$M"
