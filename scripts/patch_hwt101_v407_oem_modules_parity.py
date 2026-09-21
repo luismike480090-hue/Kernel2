@@ -44,7 +44,8 @@ echo '===== END V407 CONFIG ====='
 
 grep -qx '# CONFIG_BT is not set' .config
 grep -qx '# CONFIG_CFG80211 is not set' .config
-! grep -Eq '^CONFIG_MAC80211=[ym]grep -qx 'CONFIG_TI_ST=y' .config
+! grep -Eq '^CONFIG_MAC80211=[ym]$' .config
+grep -qx 'CONFIG_TI_ST=y' .config
 grep -qx 'CONFIG_WIRELESS_EXT=y' .config
 grep -qx 'CONFIG_WEXT_CORE=y' .config
 grep -qx 'CONFIG_LOCALVERSION="-g883717a-dirty"' .config
