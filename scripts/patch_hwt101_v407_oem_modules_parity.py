@@ -52,7 +52,7 @@ grep -qx 'CONFIG_LOCALVERSION="-g883717a-dirty"' .config
 grep -qx '# CONFIG_LOCALVERSION_AUTO is not set' .config
 
 : > .scmversion
-KR="$(make -s LOCALVERSION= kernelrelease)"
+KR="$(make -s LOCALVERSION= kernelrelease | tail -n1)"
 echo "V407_KERNELRELEASE=$KR"
 test "$KR" = '3.0.8-g883717a-dirty'
 popd >/dev/null
