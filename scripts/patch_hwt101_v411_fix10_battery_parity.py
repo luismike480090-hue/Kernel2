@@ -39,6 +39,25 @@ if re.search(r'^\s*#?obj-\$\(CONFIG_CHARGER_BQ2419x\).*bq2419x_charger\.o', ms, 
     ms += '\nobj-$(CONFIG_CHARGER_BQ2419x) += bq2419x_charger.o\n'
 mk.write_text(ms)
 
+# FIX10 has no NCT203 thermal sensor symbol. The public bq2419x donor does;
+# route its hot-area temperature helper through the reconstructed battery ADC
+# temperature instead, matching the OEM bqdemon architecture.
+charger = power / "bq2419x_charger.c"
+chs = charger.read_text()
+old_hot = '''static int get_hot_temperature()
+{
+    extern int nct203_temp_report(void);
+    return nct203_temp_report();
+}'''
+new_hot = '''static int get_hot_temperature()
+{
+    return bq27510_battery_temperature(g_battery_measure_by_bq27510_device);
+}'''
+if old_hot not in chs:
+    raise SystemExit("bq2419x NCT203 helper anchor missing")
+chs = chs.replace(old_hot, new_hot, 1)
+charger.write_text(chs)
+
 # BQ_BCI in this HWT101 port is backed by the PMIC/ADC compatibility layer,
 # therefore it must not depend on the absent legacy BQ27510 I2C driver.
 ks=kc.read_text()
