@@ -1,0 +1,172 @@
+name: HWT101 V4.11 FIX10 BATTERY PARITY
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v411-fix10-battery-parity
+    paths:
+      - '.github/workflows/hwt101-v411-fix10-battery-parity.yml'
+      - 'scripts/patch_hwt101_v411_fix10_battery_parity.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl binutils
+
+      - name: Reproduce exact V4.10B and add battery parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v410b-fix10-exact-hsad.yml').read_text()
+          marker = '      - name: Reproduce exact V4.07B and patch compiled HSAD table\n'
+          p = wf.find(marker)
+          if p < 0:
+              raise SystemExit('V4.10B derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0:
+              raise SystemExit('V4.10B run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0:
+              raise SystemExit('V4.10B run block end missing')
+          lines=[]
+          for line in wf[r:e].splitlines():
+              lines.append(line[10:] if line.startswith('          ') else line)
+          subprocess.run('\n'.join(lines)+'\n', shell=True, executable='/bin/bash', check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v410b_fix10_exact_hsad.py kernel | tee V410B-FIX10-EXACT-HSAD.txt\n'
+          if anchor not in s:
+              raise SystemExit('V4.10B patch invocation anchor missing')
+          s=s.replace(anchor, anchor+'python3 scripts/patch_hwt101_v411_fix10_battery_parity.py kernel | tee V411-BATTERY-PARITY.txt\n',1)
+          pth.write_text(s)
+          print('V411_DERIVATION=PASS')
+          print('BASE=EXACT_V410B_HARDWARE_BOOT_TO_LAUNCHER')
+          print('ONLY_CHANGE=FIX10_BATTERY_ARCHITECTURE')
+          PY
+
+      - name: Build V4.11
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.11-FIX10-BATTERY-PARITY-zImage
+          cp kernel/vmlinux HWT101-V4.11-FIX10-BATTERY-PARITY-vmlinux
+          cp kernel/System.map HWT101-V4.11-FIX10-BATTERY-PARITY-System.map
+          cp kernel/.config V411-kernel-config.txt
+          sha256sum HWT101-V4.11-FIX10-BATTERY-PARITY-zImage | tee V411-SHA256.txt
+          stat -c%s HWT101-V4.11-FIX10-BATTERY-PARITY-zImage | tee V411-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V411-KERNELRELEASE.txt
+
+      - name: V4.11 audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          C=kernel/.config
+          M=kernel/System.map
+          V=kernel/vmlinux
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+          T=kernel/drivers/huawei/hsad/auto-generate/config_total_product.c
+          K=kernel/drivers/huawei/hsad/auto-generate/hw_hwt101_fix10_k3oem_configs.c
+
+          grep -qx '3.0.8-g883717a-dirty' V411-KERNELRELEASE.txt
+
+          grep -qx 'CONFIG_CHARGER_BQ2419x=y' "$C"
+          grep -qx 'CONFIG_BQ_BCI_BATTERY=y' "$C"
+          grep -qx '# CONFIG_BATTERY_K3_BQ27510 is not set' "$C"
+          grep -qx '# CONFIG_BATTERY_K3_BQ24161 is not set' "$C"
+          grep -qx '# CONFIG_BATTERY_K3 is not set' "$C"
+          grep -qx '# CONFIG_BATTERY_BQ27510 is not set' "$C"
+
+          grep -Eq ' [tT] bq_bci_battery_probe$' "$M"
+          grep -Eq ' [tT] bq2419x_charger_probe$' "$M"
+          grep -Eq ' [tT] bq_battery_init$' "$M"
+          grep -Eq ' [tT] bq2419x_charger_init$' "$M"
+          grep -Eq ' [tT] bq27510_battery_voltage$' "$M"
+          grep -Eq ' [tT] bq27510_battery_capacity$' "$M"
+          grep -Eq ' [tT] hwt101_bq_bci_device$' "$M"
+          grep -Eq ' [tT] hwt101_bq2419x_pdata$' "$M" || grep -Eq ' [dDbB] hwt101_bq2419x_pdata$' "$M"
+          grep -Eq ' [dDbB] hwt101_bq_bci_device$' "$M" || true
+
+          ! grep -q 'k3_battery_monitor_probe' "$M"
+          ! grep -q 'k3_bq24161_charger_probe' "$M"
+          ! grep -q 'k3_bq27510_battery_probe' "$M"
+
+          strings "$V" | grep -q 'HWT101-FIX10-ADC'
+
+          grep -q '&config_common_hwt101_fix10_k3oem' "$T"
+          grep -q '.board_id = 0x00' "$K"
+          test "$(grep -c '^    {"' "$K")" -eq 21
+
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'loff_t addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+
+          {
+            echo '=== HWT101 V4.11 FIX10 BATTERY PARITY AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=V4.10B_HARDWARE_BOOT_TO_LAUNCHER
+            echo BATTERY_ARCH=bq_bci_battery+bq2419x_charger
+            echo K3_BATTERY_STACK=OFF
+            echo BATTERY_ADC_VOLTAGE=9
+            echo BATTERY_ADC_TEMPERATURE=6
+            echo SOC=REAL_ADC_VOLTAGE_DERIVED
+            echo FIXED_FAKE_PERCENT=NO
+            echo HSAD_FIX10_PROFILE=PRESERVED
+            echo HDMI_V410B_BEHAVIOR=PRESERVED
+            echo V405_WRITE_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo TI_ST=PRESERVED
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo "ZIMAGE_SIZE=$(cat V411-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V411-SHA256.txt)"
+          } | tee V411-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HWT101-V4.11-FIX10-BATTERY-PARITY
+          include-hidden-files: true
+          path: |
+            HWT101-V4.11-*
+            V411-*.txt
+            V410B-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/vmlinux
+            kernel/drivers/power/Makefile
+            kernel/drivers/power/Kconfig
+            kernel/drivers/power/bq_bci_battery.c
+            kernel/drivers/power/bq2419x_charger.c
+            kernel/drivers/power/hwt101_bqdemon_compat.c
+            kernel/drivers/huawei/hsad/auto-generate/config_total_product.c
+            kernel/drivers/huawei/hsad/auto-generate/hw_hwt101_fix10_k3oem_configs.c
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/fs/yaffs2/yaffs_mtdif.c
+            kernel/fs/yaffs2/yaffs_mtdif2.c
+          if-no-files-found: error
