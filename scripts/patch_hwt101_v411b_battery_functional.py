@@ -29,11 +29,12 @@ if len(board_hits) != 1:
 board = board_hits[0]
 bs = board.read_text(errors="ignore")
 
-if "#include <linux/power/bq_bci_battery.h>" not in bs:
-    anchor = "#include <linux/power/bq2419x_charger.h>"
+active_bci = "#include <linux/power/bq_bci_battery.h> /* HWT101_ACTIVE */"
+if active_bci not in bs:
+    anchor = "#include <linux/wakelock.h>"
     if anchor not in bs:
-        raise SystemExit("bq2419x include anchor missing")
-    bs = bs.replace(anchor, anchor+"\n#include <linux/power/bq_bci_battery.h>", 1)
+        raise SystemExit("active wakelock include anchor missing")
+    bs = bs.replace(anchor, anchor+"\\n"+active_bci, 1)
 
 charger_pdata_end = '''static struct bq2419x_platform_data hwt101_bq2419x_pdata = {
     .max_charger_currentmA = 1800,
