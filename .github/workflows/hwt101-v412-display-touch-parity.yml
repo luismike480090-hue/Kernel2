@@ -1,0 +1,165 @@
+name: HWT101 V4.12 DISPLAY TOUCH PARITY
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v412-display-touch-parity
+    paths:
+      - '.github/workflows/hwt101-v412-display-touch-parity.yml'
+      - 'scripts/patch_hwt101_v412_display_touch.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl binutils
+
+      - name: Reproduce exact V4.11B and add V4.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf=Path('.github/workflows/hwt101-v411b-fix10-battery-functional.yml').read_text()
+          marker='      - name: Reproduce exact V4.10B and add V4.11B battery\n'
+          p=wf.find(marker)
+          if p < 0: raise SystemExit('V411B derivation step missing')
+          r=wf.find('        run: |\n',p)
+          if r < 0: raise SystemExit('V411B run block missing')
+          r += len('        run: |\n')
+          e=wf.find('\n      - name:',r)
+          if e < 0: raise SystemExit('V411B derivation end missing')
+          lines=[line[10:] if line.startswith('          ') else line for line in wf[r:e].splitlines()]
+          subprocess.run('\n'.join(lines)+'\n',shell=True,executable='/bin/bash',check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v411b_battery_functional.py kernel | tee V411B-BATTERY.txt\n'
+          if anchor not in s: raise SystemExit('V411B patch invocation anchor missing')
+          s=s.replace(anchor,anchor+'python3 scripts/patch_hwt101_v412_display_touch.py kernel | tee V412-DISPLAY-TOUCH.txt\n',1)
+          pth.write_text(s)
+          print('V412_DERIVATION=PASS')
+          print('BASE=EXACT_V411B_BATTERY_FUNCTIONAL')
+          print('ONLY_CHANGE=DISPLAY_REGULATOR_PLUS_GOODIX_TOUCH')
+          PY
+
+      - name: Build V4.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.12-DISPLAY-TOUCH-PARITY-zImage
+          cp kernel/vmlinux HWT101-V4.12-DISPLAY-TOUCH-PARITY-vmlinux
+          cp kernel/System.map HWT101-V4.12-DISPLAY-TOUCH-PARITY-System.map
+          cp kernel/.config V412-kernel-config.txt
+          sha256sum HWT101-V4.12-DISPLAY-TOUCH-PARITY-zImage | tee V412-SHA256.txt
+          stat -c%s HWT101-V4.12-DISPLAY-TOUCH-PARITY-zImage | tee V412-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V412-KERNELRELEASE.txt
+
+      - name: V4.12 audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          C=kernel/.config
+          M=kernel/System.map
+          V=kernel/vmlinux
+          R=kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
+          B=kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          G=kernel/drivers/input/touchscreen/hwt101_goodix.c
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+
+          grep -qx '3.0.8-g883717a-dirty' V412-KERNELRELEASE.txt
+
+          # Exact recovered display rail topology + public I2C-name compatibility.
+          grep -q 'REGULATOR_SUPPLY("lcdanalog-vcc", "k3_dev_lcd")' "$R"
+          grep -q 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' "$R"
+          grep -q 'REGULATOR_SUPPLY("lcd-vcc", "1-002d")' "$R"
+          grep -A18 '\[HI6421_LDO17\]' "$R" | grep -q '.num_consumer_supplies = 0'
+          grep -A18 '\[HI6421_LDO17\]' "$R" | grep -q '.consumer_supplies = NULL'
+
+          # Board topology and active Goodix driver.
+          grep -q '.type = "Goodix-TS".*.addr = 0x14' "$B"
+          grep -q '.type = "sn65dsi83".*.addr = 0x2d' "$B"
+          grep -q '{ "Goodix-TS", 0 }' "$G"
+          grep -q 'HWT101_GTP: install Goodix GT9280 compatibility driver' "$G"
+          grep -Eq ' [tT] goodix_ts_probe$' "$M"
+          grep -Eq ' [tT] hwt101_goodix_init$' "$M"
+          grep -Eq ' [tT] sn65dsi83_probe$' "$M"
+          strings "$V" | grep -q 'HWT101 Goodix active polling='
+          strings "$V" | grep -q 'lcd-vcc'
+          strings "$V" | grep -q '1-002d'
+
+          # V4.11B battery must remain linked.
+          grep -qx 'CONFIG_CHARGER_BQ2419x=y' "$C"
+          grep -qx 'CONFIG_BQ_BCI_BATTERY=y' "$C"
+          grep -Eq ' [tT] bq_bci_battery_probe$' "$M"
+          grep -Eq ' [tT] bq2419x_charger_probe$' "$M"
+          grep -Eq ' [tT] bq27510_battery_capacity$' "$M"
+          ! grep -q 'k3_battery_monitor_probe' "$M"
+
+          # Storage / TI-ST preserved.
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'loff_t addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+
+          {
+            echo '=== HWT101 V4.12 DISPLAY TOUCH AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=V4.11B_BATTERY_FUNCTIONAL
+            echo SN65_LDO15_LCD_VCC=YES
+            echo LCDANALOG_LDO15=YES
+            echo LCDIO_LDO16=YES
+            echo LDO17_CONSUMERS=0
+            echo SN65_RUNTIME_ALIAS_1_002D=YES
+            echo GOODIX_DRIVER=LINKED
+            echo GOODIX_BOARD_DEVICE=I2C2_0x14
+            echo GOODIX_MODE=POLL_20MS
+            echo GOODIX_RANGE=1280x800
+            echo BATTERY_V411B=PRESERVED
+            echo HSAD_V410B=PRESERVED
+            echo V405_WRITE_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo TI_ST=PRESERVED
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo "ZIMAGE_SIZE=$(cat V412-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V412-SHA256.txt)"
+          } | tee V412-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HWT101-V4.12-DISPLAY-TOUCH-PARITY
+          include-hidden-files: true
+          path: |
+            HWT101-V4.12-*
+            V412-*.txt
+            V411B-*.txt
+            V410B-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/vmlinux
+            kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
+            kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+            kernel/drivers/input/touchscreen/hwt101_goodix.c
+            kernel/drivers/video/k3/sn65dsi83_hwt101.c
+          if-no-files-found: error
