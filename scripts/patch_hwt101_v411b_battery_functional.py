@@ -29,13 +29,6 @@ if len(board_hits) != 1:
 board = board_hits[0]
 bs = board.read_text(errors="ignore")
 
-active_bci = "#include <linux/power/bq_bci_battery.h> /* HWT101_ACTIVE */"
-if active_bci not in bs:
-    anchor = "#include <linux/wakelock.h>"
-    if anchor not in bs:
-        raise SystemExit("active wakelock include anchor missing")
-    bs = bs.replace(anchor, anchor+"\n"+active_bci, 1)
-
 charger_pdata_end = '''static struct bq2419x_platform_data hwt101_bq2419x_pdata = {
     .max_charger_currentmA = 1800,
     .max_charger_voltagemV = 4208,
@@ -52,6 +45,17 @@ battery_pdata = r'''
  * The charger limits above are exact FIX10 binary values.
  * Monitor timing/low-voltage threshold match Huawei's K3 battery ABI.
  */
+struct hwt101_bq_bci_platform_data {
+    int *battery_tmp_tbl;
+    unsigned int tblsize;
+    unsigned int monitoring_interval;
+    unsigned int max_charger_currentmA;
+    unsigned int max_charger_voltagemV;
+    unsigned int termination_currentmA;
+    unsigned int max_bat_voltagemV;
+    unsigned int low_bat_voltagemV;
+};
+
 static int hwt101_batt_temp_table[] = {
     929, 925,
     920, 917, 912, 908, 904, 899, 895, 890, 885, 880,
@@ -63,7 +67,7 @@ static int hwt101_batt_temp_table[] = {
     511, 504, 496
 };
 
-static struct bq_bci_platform_data hwt101_bq_bci_pdata = {
+static struct hwt101_bq_bci_platform_data hwt101_bq_bci_pdata = {
     .battery_tmp_tbl = hwt101_batt_temp_table,
     .tblsize = ARRAY_SIZE(hwt101_batt_temp_table),
     .monitoring_interval = 10,
