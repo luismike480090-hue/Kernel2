@@ -43,7 +43,7 @@ mk.write_text(ms)
 # route its hot-area temperature helper through the reconstructed battery ADC
 # temperature instead, matching the OEM bqdemon architecture.
 charger = power / "bq2419x_charger.c"
-chs = charger.read_text()
+chs = charger.read_text(encoding="latin-1")
 old_hot = '''static int get_hot_temperature()
 {
     extern int nct203_temp_report(void);
@@ -56,7 +56,7 @@ new_hot = '''static int get_hot_temperature()
 if old_hot not in chs:
     raise SystemExit("bq2419x NCT203 helper anchor missing")
 chs = chs.replace(old_hot, new_hot, 1)
-charger.write_text(chs)
+charger.write_text(chs, encoding="latin-1")
 
 # BQ_BCI in this HWT101 port is backed by the PMIC/ADC compatibility layer,
 # therefore it must not depend on the absent legacy BQ27510 I2C driver.
