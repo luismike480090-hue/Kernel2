@@ -34,7 +34,7 @@ if active_bci not in bs:
     anchor = "#include <linux/wakelock.h>"
     if anchor not in bs:
         raise SystemExit("active wakelock include anchor missing")
-    bs = bs.replace(anchor, anchor+"\\n"+active_bci, 1)
+    bs = bs.replace(anchor, anchor+"\n"+active_bci, 1)
 
 charger_pdata_end = '''static struct bq2419x_platform_data hwt101_bq2419x_pdata = {
     .max_charger_currentmA = 1800,
