@@ -285,7 +285,7 @@ ns=nand.read_text()
 assert "ALLOW PAGEPROG" not in ns and "ALLOW ERASE2" not in ns
 assert "BLOCK PAGEPROG" in ns and "BLOCK ERASE2" in ns
 ls=logf.read_text()
-assert "HWT101: keep the Android logger writable" in ls
+assert "HWT101: FIX10 userspace expects all Android log buffers writable." in ls
 assert "return 0;" in ls  # other legitimate returns remain
 gs=g.read_text()
 for tok in ("V4.13 install/retry driver","asynchronous controller retry enabled",
