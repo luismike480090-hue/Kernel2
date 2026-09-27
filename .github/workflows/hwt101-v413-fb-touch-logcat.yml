@@ -101,7 +101,7 @@ jobs:
 
           # Android logger present and Huawei NV write filter bypassed.
           grep -qx 'CONFIG_ANDROID_LOGGER=y' "$C"
-          grep -q 'HWT101: keep the Android logger writable' "$L"
+          grep -q 'HWT101: FIX10 userspace expects all Android log buffers writable.' "$L"
           grep -Eq ' [tT] logger_aio_write$' "$M"
           strings "$V" | grep -q 'log_main'
           strings "$V" | grep -q 'log_system'
