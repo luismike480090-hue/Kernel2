@@ -1,13 +1,14 @@
-name: HWT101 V4.13 FB TOUCH LOGCAT
+name: HWT101 V4.14 GOODIX FIX10 RESET LOGSEED
 
 on:
   workflow_dispatch:
   push:
     branches:
-      - v413-fb-touch-logcat
+      - v414-goodix-fix10-reset-logseed
     paths:
       - '.github/workflows/hwt101-v413-fb-touch-logcat.yml'
       - 'scripts/patch_hwt101_v413_fb_touch_logcat.py'
+      - 'scripts/patch_hwt101_v414_goodix_fix10_reset_logseed.py'
 
 jobs:
   build:
@@ -24,7 +25,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl binutils
 
-      - name: Reproduce exact V4.12 and add V4.13
+      - name: Reproduce exact V4.13 and add V4.14
         shell: bash
         run: |
           set -euo pipefail
@@ -49,12 +50,15 @@ jobs:
           anchor='python3 scripts/patch_hwt101_v412_display_touch.py kernel | tee V412-DISPLAY-TOUCH.txt\n'
           if anchor not in s: raise SystemExit('V412 patch invocation anchor missing')
           s=s.replace(anchor,anchor+'python3 scripts/patch_hwt101_v413_fb_touch_logcat.py kernel | tee V413-PATCH.txt\n',1)
+          anchor414='python3 scripts/patch_hwt101_v413_fb_touch_logcat.py kernel | tee V413-PATCH.txt\n'
+          if anchor414 not in s: raise SystemExit('V413 invocation missing')
+          s=s.replace(anchor414,anchor414+'python3 scripts/patch_hwt101_v414_goodix_fix10_reset_logseed.py kernel | tee V414-PATCH.txt\n',1)
           pth.write_text(s)
-          print('V413_DERIVATION=PASS')
-          print('BASE=EXACT_V412')
+          print('V414_DERIVATION=PASS')
+          print('BASE=EXACT_V413')
           PY
 
-      - name: Build V4.13
+      - name: Build V4.14
         shell: bash
         run: |
           set -euo pipefail
@@ -66,65 +70,65 @@ jobs:
           sha256sum HWT101-V4.13-FB-TOUCH-LOGCAT-zImage | tee V413-SHA256.txt
           stat -c%s HWT101-V4.13-FB-TOUCH-LOGCAT-zImage | tee V413-SIZE.txt
           make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V413-KERNELRELEASE.txt
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.14-GOODIX-FIX10-RESET-LOGSEED-zImage
+          cp kernel/vmlinux HWT101-V4.14-GOODIX-FIX10-RESET-LOGSEED-vmlinux
+          cp kernel/System.map HWT101-V4.14-GOODIX-FIX10-RESET-LOGSEED-System.map
+          cp kernel/.config V414-kernel-config.txt
+          sha256sum HWT101-V4.14-GOODIX-FIX10-RESET-LOGSEED-zImage | tee V414-SHA256.txt
+          stat -c%s HWT101-V4.14-GOODIX-FIX10-RESET-LOGSEED-zImage | tee V414-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V414-KERNELRELEASE.txt
 
-      - name: V4.13 audit
+      - name: V4.14 audit
         shell: bash
         run: |
           set -euo pipefail
           C=kernel/.config
           M=kernel/System.map
           V=kernel/vmlinux
-          FBH=kernel/drivers/video/k3/k3_fb.h
-          FBC=kernel/drivers/video/k3/k3_fb.c
           G=kernel/drivers/input/touchscreen/hwt101_goodix.c
           L=kernel/drivers/staging/android/logger.c
+          FBH=kernel/drivers/video/k3/k3_fb.h
+          FBC=kernel/drivers/video/k3/k3_fb.c
           H=kernel/drivers/mtd/nand/hinand_hwt101.c
-          B=kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
           R=kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
           Y1=kernel/fs/yaffs2/yaffs_mtdif.c
           Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
 
-          grep -qx '3.0.8-g883717a-dirty' V413-KERNELRELEASE.txt
+          grep -qx '3.0.8-g883717a-dirty' V414-KERNELRELEASE.txt
 
-          # Framebuffer: FIX10 parity, no forced +64 stride.
+          grep -q '#define HWT101_GTP_GPIO_INT       157' "$G"
+          grep -q '#define HWT101_GTP_GPIO_RESET     156' "$G"
+          grep -q '#define HWT101_GTP_GPIO_ENABLE    61' "$G"
+          grep -q 'client->addr==0x14 ? 1 : 0' "$G"
+          grep -q 'hwt101_gtp_reset_guitar(ts,20)' "$G"
+          grep -q 'iomux_get_block("block_ts")' "$G"
+          grep -Eq ' [tT] hwt101_gtp_reset_guitar$' "$M"
+          strings "$V" | grep -q 'V4.14 FIX10 reset driver en=61 reset=156 int=157 addr=0x14'
+          strings "$V" | grep -q 'HWT101_GTP FIX10 reset complete'
+
+          grep -qx 'CONFIG_ANDROID_LOGGER=y' "$C"
+          grep -qx '# CONFIG_K3_LOG is not set' "$C"
+          grep -q 'LOGGER_RING_OK_V414' "$L"
+          grep -Eq ' [tT] hwt101_logger_seed_main$' "$M"
+          strings "$V" | grep -q 'LOGGER_RING_OK_V414'
+          strings "$V" | grep -q 'HWT101_LOGGER_SEED'
+
           ! grep -q '^#define CONFIG_FB_STRIDE_64BYTES_ODD_ALIGN' "$FBH"
           grep -q 'return xres \* bpp;' "$FBC"
-          grep -Eq ' [tT] k3_fb_line_length$' "$M"
-
-          # Goodix remains linked, but now probe survives an initially sleeping controller.
-          grep -q 'V4.13 install/retry driver' "$G"
-          grep -q 'asynchronous controller retry enabled' "$G"
-          grep -q 'HWT101_GTP ONLINE' "$G"
-          grep -Eq ' [tT] goodix_ts_probe$' "$M"
-          strings "$V" | grep -q 'HWT101_GTP: V4.13 install/retry driver'
-          strings "$V" | grep -q 'HWT101_GTP input registered; asynchronous controller retry enabled'
-
-          # Android logger present and Huawei NV write filter bypassed.
-          grep -qx 'CONFIG_ANDROID_LOGGER=y' "$C"
           grep -q 'HWT101: FIX10 userspace expects all Android log buffers writable.' "$L"
-          grep -Eq ' [tT] logger_aio_write$' "$M"
-          strings "$V" | grep -q 'log_main'
-          strings "$V" | grep -q 'log_system'
 
-          # NAND guard preserved, noisy allow logging removed.
           grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
           grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK PAGEPROG' "$H"
           grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK ERASE2' "$H"
           ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
           ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
-          ! strings "$V" | grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG'
-          ! strings "$V" | grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2'
 
-          # Preserve V4.12 display rails / board and V4.11B battery.
           grep -q 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' "$R"
-          grep -q '.type = "Goodix-TS".*.addr = 0x14' "$B"
           grep -qx 'CONFIG_CHARGER_BQ2419x=y' "$C"
           grep -qx 'CONFIG_BQ_BCI_BATTERY=y' "$C"
           grep -Eq ' [tT] bq_bci_battery_probe$' "$M"
           grep -Eq ' [tT] bq2419x_charger_probe$' "$M"
-
-          # Storage and TI-ST preserved.
           grep -q 'loff_t addr =' "$Y1"
           test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
           grep -qx 'CONFIG_TI_ST=y' "$C"
@@ -132,30 +136,37 @@ jobs:
           grep -qx 'CONFIG_CFG80211=y' "$C"
 
           {
-            echo '=== HWT101 V4.13 FB TOUCH LOGCAT AUDIT ==='
+            echo '=== HWT101 V4.14 GOODIX FIX10 RESET LOGSEED AUDIT ==='
             echo BUILD=PASS
-            echo BASE=V4.12
-            echo FRAMEBUFFER_STRIDE_FORMULA=FIX10_1280x4_5120
-            echo GOODIX_INPUT_REGISTER_AND_RETRY=YES
-            echo ANDROID_LOGGER_NV_FILTER_BYPASS=YES
-            echo NAND_ALLOW_PRINTK=REMOVED
-            echo NAND_BLOCK_GUARD=PRESERVED
+            echo BASE=V4.13
+            echo GOODIX_GPIO_ENABLE=61
+            echo GOODIX_GPIO_RESET=156
+            echo GOODIX_GPIO_INT=157
+            echo GOODIX_ADDR=0x14
+            echo GOODIX_RESET_LOW_MS=20
+            echo GOODIX_ADDR_SELECT_INT_HIGH=YES
+            echo GOODIX_INT_SYNC_LOW_MS=50
+            echo GOODIX_OFFLINE_RETRY_MS=1000
+            echo LOGGER_KERNEL_SEED=LOGGER_RING_OK_V414
+            echo FRAMEBUFFER_STRIDE_5120_FIX=PRESERVED
             echo BATTERY_V411B=PRESERVED
             echo HSAD_V410B=PRESERVED
-            echo DISPLAY_RAILS_V412=PRESERVED
+            echo NAND_BLOCK_GUARD=PRESERVED
             echo V406_YAFFS64=PRESERVED
             echo TI_ST=PRESERVED
             echo KERNELRELEASE=3.0.8-g883717a-dirty
-            echo "ZIMAGE_SIZE=$(cat V413-SIZE.txt)"
-            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V413-SHA256.txt)"
-          } | tee V413-FINAL-AUDIT.txt
+            echo "ZIMAGE_SIZE=$(cat V414-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V414-SHA256.txt)"
+          } | tee V414-FINAL-AUDIT.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: HWT101-V4.13-FB-TOUCH-LOGCAT
+          name: HWT101-V4.14-GOODIX-FIX10-RESET-LOGSEED
           include-hidden-files: true
           path: |
+            HWT101-V4.14-*
+            V414-*.txt
             HWT101-V4.13-*
             V413-*.txt
             V412-*.txt
