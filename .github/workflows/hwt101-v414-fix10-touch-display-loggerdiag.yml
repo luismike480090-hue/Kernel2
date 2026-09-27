@@ -1,0 +1,268 @@
+name: HWT101 V4.14 FIX10 TOUCH DISPLAY LOGGERDIAG
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v414-fix10-touch-display-loggerdiag
+    paths:
+      - '.github/workflows/hwt101-v414-fix10-touch-display-loggerdiag.yml'
+      - 'scripts/patch_hwt101_v414_fix10_touch_display_loggerdiag.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl binutils
+
+      - name: Reproduce exact V4.13 and add V4.14
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf = Path('.github/workflows/hwt101-v413-fb-touch-logcat.yml').read_text()
+          marker = '      - name: Reproduce exact V4.12 and add V4.13\n'
+          p = wf.find(marker)
+          if p < 0:
+              raise SystemExit('V413 derivation step missing')
+          r = wf.find('        run: |\n', p)
+          if r < 0:
+              raise SystemExit('V413 run block missing')
+          r += len('        run: |\n')
+          e = wf.find('\n      - name:', r)
+          if e < 0:
+              raise SystemExit('V413 derivation end missing')
+          lines = [line[10:] if line.startswith('          ') else line
+                   for line in wf[r:e].splitlines()]
+          subprocess.run('\n'.join(lines) + '\n',
+                         shell=True, executable='/bin/bash', check=True)
+
+          pth = Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s = pth.read_text()
+          anchor = 'python3 scripts/patch_hwt101_v413_fb_touch_logcat.py kernel | tee V413-PATCH.txt\n'
+          if anchor not in s:
+              raise SystemExit('V413 patch invocation anchor missing')
+          s = s.replace(
+              anchor,
+              anchor + 'python3 scripts/patch_hwt101_v414_fix10_touch_display_loggerdiag.py kernel | tee V414-PATCH.txt\n',
+              1)
+          pth.write_text(s)
+
+          print('V414_DERIVATION=PASS')
+          print('BASE=EXACT_V413')
+          print('TOUCH_CHANGE=EXACT_FIX10_GPIO_IOMUX_BOOTSTRAP')
+          print('DISPLAY_CHANGE=EXACT_FIX10_TOSHIBA_TIMING')
+          print('LOGGER_CHANGE=BOUNDED_DIAGNOSTICS_ONLY')
+          PY
+
+      - name: Build V4.14
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.14-FIX10-TOUCH-DISPLAY-LOGGERDIAG-zImage
+          cp kernel/vmlinux HWT101-V4.14-FIX10-TOUCH-DISPLAY-LOGGERDIAG-vmlinux
+          cp kernel/System.map HWT101-V4.14-FIX10-TOUCH-DISPLAY-LOGGERDIAG-System.map
+          cp kernel/.config V414-kernel-config.txt
+          sha256sum HWT101-V4.14-FIX10-TOUCH-DISPLAY-LOGGERDIAG-zImage | tee V414-SHA256.txt
+          stat -c%s HWT101-V4.14-FIX10-TOUCH-DISPLAY-LOGGERDIAG-zImage | tee V414-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V414-KERNELRELEASE.txt
+
+      - name: V4.14 audit
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          C=kernel/.config
+          M=kernel/System.map
+          V=kernel/vmlinux
+          FBH=kernel/drivers/video/k3/k3_fb.h
+          FBC=kernel/drivers/video/k3/k3_fb.c
+          G=kernel/drivers/input/touchscreen/hwt101_goodix.c
+          P=kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+          L=kernel/drivers/staging/android/logger.c
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          B=kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          R=kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
+          HS=kernel/drivers/huawei/hsad/auto-generate/config_total_product.c
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+
+          grep -qx '3.0.8-g883717a-dirty' V414-KERNELRELEASE.txt
+
+          # ----------------------------------------------------------------
+          # Framebuffer stride: preserve V4.13 hardware-proven 5120.
+          # ----------------------------------------------------------------
+          ! grep -q '^#define CONFIG_FB_STRIDE_64BYTES_ODD_ALIGN' "$FBH"
+          grep -q 'return xres \* bpp;' "$FBC"
+          grep -Eq ' [tT] k3_fb_line_length$' "$M"
+
+          # ----------------------------------------------------------------
+          # TOUCH: exact FIX10 platform data/bootstrap recovered from binary.
+          # No V4.13 infinite NACK retry path is allowed.
+          # ----------------------------------------------------------------
+          grep -q '#define HWT101_GTP_INT_GPIO       157' "$G"
+          grep -q '#define HWT101_GTP_RESET_GPIO     156' "$G"
+          grep -q '#define HWT101_GTP_ENABLE_GPIO     61' "$G"
+          grep -q 'iomux_get_block("block_ts")' "$G"
+          grep -q 'client->addr == 0x14 ? 1 : 0' "$G"
+          grep -q '#define HWT101_GTP_REG_POSTRESET  0x8041' "$G"
+          grep -q '0xaa' "$G"
+          grep -q 'controller NACK after FIX10 bootstrap' "$G"
+          ! grep -q 'asynchronous controller retry enabled' "$G"
+          ! grep -q 'HWT101_GTP waiting for controller' "$G"
+          grep -Eq ' [tT] goodix_ts_probe$' "$M"
+          grep -Eq ' [tT] hwt101_goodix_init$' "$M"
+          strings "$V" | grep -q 'HWT101_GTP: V4.14 FIX10 bootstrap INT=157 RESET=156 ENABLE=61'
+          strings "$V" | grep -q 'HWT101_GTP FIX10 bootstrap OK'
+          strings "$V" | grep -q 'HWT101_GTP ONLINE product='
+
+          # Board topology itself remains I2C2/0x14.
+          grep -q '.type = "Goodix-TS".*.addr = 0x14' "$B"
+
+          # ----------------------------------------------------------------
+          # DISPLAY: exact values recovered from FIX10 toshiba_probe().
+          # Keep 76 MHz, 4 lanes, SN65 rail topology, and V4.13 stride.
+          # ----------------------------------------------------------------
+          grep -Eq 'pinfo->xres[[:space:]]*=[[:space:]]*1280;' "$P"
+          grep -Eq 'pinfo->yres[[:space:]]*=[[:space:]]*800;' "$P"
+          grep -Eq 'pinfo->width[[:space:]]*=[[:space:]]*230;' "$P"
+          grep -Eq 'pinfo->height[[:space:]]*=[[:space:]]*149;' "$P"
+          grep -Eq 'pinfo->ldi.h_back_porch[[:space:]]*=[[:space:]]*60;' "$P"
+          grep -Eq 'pinfo->ldi.h_front_porch[[:space:]]*=[[:space:]]*70;' "$P"
+          grep -Eq 'pinfo->ldi.h_pulse_width[[:space:]]*=[[:space:]]*60;' "$P"
+          grep -Eq 'pinfo->ldi.v_back_porch[[:space:]]*=[[:space:]]*13;' "$P"
+          grep -Eq 'pinfo->ldi.v_front_porch[[:space:]]*=[[:space:]]*13;' "$P"
+          grep -Eq 'pinfo->ldi.v_pulse_width[[:space:]]*=[[:space:]]*7;' "$P"
+          grep -Eq 'pinfo->clk_rate[[:space:]]*=[[:space:]]*76000000;' "$P"
+          grep -Eq 'pinfo->mipi.lane_nums[[:space:]]*=[[:space:]]*DSI_4_LANES;' "$P"
+          grep -Eq 'pinfo->mipi.dsi_bit_clk[[:space:]]*=[[:space:]]*228;' "$P"
+
+          grep -q 'REGULATOR_SUPPLY("lcdanalog-vcc", "k3_dev_lcd")' "$R"
+          grep -q 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' "$R"
+          grep -q 'REGULATOR_SUPPLY("lcd-vcc", "1-002d")' "$R"
+          grep -A18 '\[HI6421_LDO17\]' "$R" | grep -q '.num_consumer_supplies = 0'
+          grep -Eq ' [tT] sn65dsi83_probe$' "$M"
+
+          # ----------------------------------------------------------------
+          # LOGGER: isolate diagnosis. Android logger remains enabled while
+          # K3_LOG remains OFF in this version. Four bounded trace sites.
+          # ----------------------------------------------------------------
+          grep -qx 'CONFIG_ANDROID_LOGGER=y' "$C"
+          grep -qx '# CONFIG_K3_LOG is not set' "$C"
+          grep -q 'HWT101_LOGGER OPEN' "$L"
+          grep -q 'HWT101_LOGGER WRITE' "$L"
+          grep -q 'HWT101_LOGGER WROTE' "$L"
+          grep -q 'HWT101_LOGGER IOCTL' "$L"
+          grep -Eq ' [tT] logger_aio_write$' "$M"
+          strings "$V" | grep -q 'HWT101_LOGGER OPEN'
+          strings "$V" | grep -q 'HWT101_LOGGER WRITE'
+          strings "$V" | grep -q 'HWT101_LOGGER WROTE'
+          strings "$V" | grep -q 'HWT101_LOGGER IOCTL'
+
+          # ----------------------------------------------------------------
+          # Preserve proven V4.11B battery exactly as architecture choice.
+          # ----------------------------------------------------------------
+          grep -qx 'CONFIG_CHARGER_BQ2419x=y' "$C"
+          grep -qx 'CONFIG_BQ_BCI_BATTERY=y' "$C"
+          grep -Eq ' [tT] bq_bci_battery_probe$' "$M"
+          grep -Eq ' [tT] bq2419x_charger_probe$' "$M"
+          grep -Eq ' [tT] bq27510_battery_capacity$' "$M"
+          ! grep -q 'k3_battery_monitor_probe' "$M"
+
+          # ----------------------------------------------------------------
+          # Preserve exact V4.10B HSAD profile markers.
+          # ----------------------------------------------------------------
+          grep -q 'k3oem' "$HS"
+          grep -q 'faceIgnoreCount' "$HS"
+          grep -q 'primary_sensor' "$HS"
+          grep -q 'secondary_sensor' "$HS"
+
+          # ----------------------------------------------------------------
+          # Preserve NAND guard / YAFFS64 / TI-ST.
+          # ----------------------------------------------------------------
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK PAGEPROG' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK ERASE2' "$H"
+          ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
+          ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
+
+          grep -q 'loff_t addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+
+          {
+            echo '=== HWT101 V4.14 FIX10 TOUCH DISPLAY LOGGERDIAG AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=EXACT_V4.13
+            echo TOUCH_FIX10_INT_GPIO=157
+            echo TOUCH_FIX10_RESET_GPIO=156
+            echo TOUCH_FIX10_ENABLE_GPIO=61
+            echo TOUCH_FIX10_IOMUX=block_ts
+            echo TOUCH_FIX10_ADDR_STRAP=INT_HIGH_FOR_0x14
+            echo TOUCH_FIX10_POSTRESET=0x8041_AA
+            echo TOUCH_INFINITE_NACK_RETRY=REMOVED
+            echo DISPLAY_RESOLUTION=1280x800
+            echo DISPLAY_PHYSICAL_MM=230x149
+            echo DISPLAY_HBP_HFP_HSW=60_70_60
+            echo DISPLAY_VBP_VFP_VSW=13_13_7
+            echo DISPLAY_PIXEL_CLOCK=76000000
+            echo DISPLAY_DSI_BIT_CLOCK=228
+            echo DISPLAY_DSI_LANES=4
+            echo DISPLAY_SN65_REGISTER_TABLE=UNCHANGED
+            echo FRAMEBUFFER_STRIDE=V413_5120_FORMULA_PRESERVED
+            echo LOGGER_MODE=BOUNDED_DIAGNOSTIC
+            echo CONFIG_K3_LOG=OFF_UNCHANGED
+            echo BATTERY_V411B=PRESERVED
+            echo HSAD_V410B=PRESERVED
+            echo V405_NAND_GUARD=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo TI_ST=PRESERVED
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo "ZIMAGE_SIZE=$(cat V414-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V414-SHA256.txt)"
+          } | tee V414-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HWT101-V4.14-FIX10-TOUCH-DISPLAY-LOGGERDIAG
+          include-hidden-files: true
+          path: |
+            HWT101-V4.14-*
+            V414-*.txt
+            V413-*.txt
+            V412-*.txt
+            V411B-*.txt
+            V410B-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/vmlinux
+            kernel/drivers/video/k3/k3_fb.h
+            kernel/drivers/video/k3/k3_fb.c
+            kernel/drivers/video/k3/panel/mipi_toshiba_MDW70_V001.c
+            kernel/drivers/input/touchscreen/hwt101_goodix.c
+            kernel/drivers/staging/android/logger.c
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+            kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
+            kernel/drivers/huawei/hsad/auto-generate/config_total_product.c
+          if-no-files-found: error
