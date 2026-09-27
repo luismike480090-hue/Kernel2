@@ -25,28 +25,28 @@ if "HWT101_V405_ANDROID_GUARD: BLOCK PAGEPROG" not in s or "HWT101_V405_ANDROID_
     raise SystemExit("NAND BLOCK guard missing")
 nand.write_text(s)
 
-# 3) Android logger: Huawei NV gating can leave userspace log buffers empty.
-# Preserve logger devices/ABI, but accept all writes like standard Android logger.
+# 3) Android logger: Huawei NV gating can leave userspace buffers empty.
+# Preserve the devices and ABI, but accept all writes like standard Android.
 logf=root/"drivers/staging/android/logger.c"
 s=logf.read_text()
-pat=re.compile(r'''\s*if \(logctl_nv == 1 \|\| minor_of_events == log->misc.minor\s*
-\s*\|\| \(\(minor_of_main == log->misc.minor\) && \(priority >= ANDROID_LOG_INFO\)\)\s*
-\s*\|\|minor_of_power == log->misc.minor\)\s*
-\s*\{\s*
-\s*/\* log it \*/\s*
-\s*\}\s*
-\s*else\s*
-\s*\{\s*
-\s*return 0;\s*
-\s*\}''',re.X)
-replacement='''
-        /* HWT101: keep the Android logger writable regardless of Huawei
-         * logctl NV state. The FIX10 userspace expects /dev/log/* to receive
-         * main/system/radio/events continuously. */
+old='''        /* if log device is events or main which its priority is more than ANDROID_LOG_INFO, we also pass it */
+        if (logctl_nv == 1 || minor_of_events == log->misc.minor
+            || ((minor_of_main == log->misc.minor) && (priority >= ANDROID_LOG_INFO))
+            ||minor_of_power == log->misc.minor)
+        {
+            /* log it */
+        }
+        else
+        {
+            return -1;
+        }
 '''
-s,n=pat.subn(replacement,s,count=1)
-if n!=1:
-    raise SystemExit("logger NV filter anchor missing")
+new='''        /* HWT101: FIX10 userspace expects all Android log buffers writable.
+         * Ignore Huawei logctl NV gating; retain the same logger ABI/devices. */
+'''
+if old not in s:
+    raise SystemExit("logger NV filter exact anchor missing")
+s=s.replace(old,new,1)
 logf.write_text(s)
 
 # 4) Goodix GT9280: do not permanently fail if the controller is not ready
