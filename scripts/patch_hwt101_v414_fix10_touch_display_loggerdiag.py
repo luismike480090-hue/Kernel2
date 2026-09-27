@@ -345,7 +345,8 @@ static void goodix_ts_work_func(struct work_struct *work)
     ret = hwt101_gtp_read_once(ts->client, HWT101_GTP_REG_STATUS,
                                &status, 1);
     if (ret) {
-        /* V4.14: no event-read printk loop on this 3.0.8 kernel. */\n        goto again;
+        /* V4.14: no event-read printk loop on this 3.0.8 kernel. */
+        goto again;
     }
 
     if (!(status & 0x80))
