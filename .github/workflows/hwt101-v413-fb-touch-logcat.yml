@@ -1,0 +1,176 @@
+name: HWT101 V4.13 FB TOUCH LOGCAT
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - v413-fb-touch-logcat
+    paths:
+      - '.github/workflows/hwt101-v413-fb-touch-logcat.yml'
+      - 'scripts/patch_hwt101_v413_fb_touch_logcat.py'
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          set -e
+          sudo dpkg --add-architecture i386 || true
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo apt-get clean
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc git libc6-i386 lib32z1 lib32stdc++6 libspreadsheet-parseexcel-perl binutils
+
+      - name: Reproduce exact V4.12 and add V4.13
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          wf=Path('.github/workflows/hwt101-v412-display-touch-parity.yml').read_text()
+          marker='      - name: Reproduce exact V4.11B and add V4.12\n'
+          p=wf.find(marker)
+          if p < 0: raise SystemExit('V412 derivation step missing')
+          r=wf.find('        run: |\n',p)
+          if r < 0: raise SystemExit('V412 run block missing')
+          r += len('        run: |\n')
+          e=wf.find('\n      - name:',r)
+          if e < 0: raise SystemExit('V412 derivation end missing')
+          lines=[line[10:] if line.startswith('          ') else line for line in wf[r:e].splitlines()]
+          subprocess.run('\n'.join(lines)+'\n',shell=True,executable='/bin/bash',check=True)
+
+          pth=Path('scripts/build_hwt101_v363_ntfs_prune.sh')
+          s=pth.read_text()
+          anchor='python3 scripts/patch_hwt101_v412_display_touch.py kernel | tee V412-DISPLAY-TOUCH.txt\n'
+          if anchor not in s: raise SystemExit('V412 patch invocation anchor missing')
+          s=s.replace(anchor,anchor+'python3 scripts/patch_hwt101_v413_fb_touch_logcat.py kernel | tee V413-PATCH.txt\n',1)
+          pth.write_text(s)
+          print('V413_DERIVATION=PASS')
+          print('BASE=EXACT_V412')
+          PY
+
+      - name: Build V4.13
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/build_hwt101_v363_ntfs_prune.sh
+          cp HWT101-V3.63-FIX10-NTFS-PRUNE-zImage HWT101-V4.13-FB-TOUCH-LOGCAT-zImage
+          cp kernel/vmlinux HWT101-V4.13-FB-TOUCH-LOGCAT-vmlinux
+          cp kernel/System.map HWT101-V4.13-FB-TOUCH-LOGCAT-System.map
+          cp kernel/.config V413-kernel-config.txt
+          sha256sum HWT101-V4.13-FB-TOUCH-LOGCAT-zImage | tee V413-SHA256.txt
+          stat -c%s HWT101-V4.13-FB-TOUCH-LOGCAT-zImage | tee V413-SIZE.txt
+          make -s -C kernel ARCH=arm CROSS_COMPILE="$PWD/gcc46/bin/arm-eabi-" LOCALVERSION= kernelrelease | tail -n1 | tee V413-KERNELRELEASE.txt
+
+      - name: V4.13 audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          C=kernel/.config
+          M=kernel/System.map
+          V=kernel/vmlinux
+          FBH=kernel/drivers/video/k3/k3_fb.h
+          FBC=kernel/drivers/video/k3/k3_fb.c
+          G=kernel/drivers/input/touchscreen/hwt101_goodix.c
+          L=kernel/drivers/staging/android/logger.c
+          H=kernel/drivers/mtd/nand/hinand_hwt101.c
+          B=kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+          R=kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
+          Y1=kernel/fs/yaffs2/yaffs_mtdif.c
+          Y2=kernel/fs/yaffs2/yaffs_mtdif2.c
+
+          grep -qx '3.0.8-g883717a-dirty' V413-KERNELRELEASE.txt
+
+          # Framebuffer: FIX10 parity, no forced +64 stride.
+          ! grep -q '^#define CONFIG_FB_STRIDE_64BYTES_ODD_ALIGN' "$FBH"
+          grep -q 'return xres \* bpp;' "$FBC"
+          grep -Eq ' [tT] k3_fb_line_length$' "$M"
+
+          # Goodix remains linked, but now probe survives an initially sleeping controller.
+          grep -q 'V4.13 install/retry driver' "$G"
+          grep -q 'asynchronous controller retry enabled' "$G"
+          grep -q 'HWT101_GTP ONLINE' "$G"
+          grep -Eq ' [tT] goodix_ts_probe$' "$M"
+          strings "$V" | grep -q 'HWT101_GTP: V4.13 install/retry driver'
+          strings "$V" | grep -q 'HWT101_GTP input registered; asynchronous controller retry enabled'
+
+          # Android logger present and Huawei NV write filter bypassed.
+          grep -qx 'CONFIG_ANDROID_LOGGER=y' "$C"
+          grep -q 'HWT101: keep the Android logger writable' "$L"
+          grep -Eq ' [tT] logger_aio_write$' "$M"
+          strings "$V" | grep -q 'log_main'
+          strings "$V" | grep -q 'log_system'
+
+          # NAND guard preserved, noisy allow logging removed.
+          grep -q '#define HWT_ANDROID_FIRST_PAGE 0x16500U' "$H"
+          grep -q '#define HWT_ANDROID_LAST_PAGE  0xfffffU' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK PAGEPROG' "$H"
+          grep -q 'HWT101_V405_ANDROID_GUARD: BLOCK ERASE2' "$H"
+          ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG' "$H"
+          ! grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2' "$H"
+          ! strings "$V" | grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW PAGEPROG'
+          ! strings "$V" | grep -q 'HWT101_V405_ANDROID_GUARD: ALLOW ERASE2'
+
+          # Preserve V4.12 display rails / board and V4.11B battery.
+          grep -q 'REGULATOR_SUPPLY("lcd-vcc", "sn65dsi83")' "$R"
+          grep -q '.type = "Goodix-TS".*.addr = 0x14' "$B"
+          grep -qx 'CONFIG_CHARGER_BQ2419x=y' "$C"
+          grep -qx 'CONFIG_BQ_BCI_BATTERY=y' "$C"
+          grep -Eq ' [tT] bq_bci_battery_probe$' "$M"
+          grep -Eq ' [tT] bq2419x_charger_probe$' "$M"
+
+          # Storage and TI-ST preserved.
+          grep -q 'loff_t addr =' "$Y1"
+          test "$(grep -c '((loff_t) block_no) \* dev->param.chunks_per_block \*' "$Y2")" -ge 2
+          grep -qx 'CONFIG_TI_ST=y' "$C"
+          grep -qx 'CONFIG_BT=y' "$C"
+          grep -qx 'CONFIG_CFG80211=y' "$C"
+
+          {
+            echo '=== HWT101 V4.13 FB TOUCH LOGCAT AUDIT ==='
+            echo BUILD=PASS
+            echo BASE=V4.12
+            echo FRAMEBUFFER_STRIDE_FORMULA=FIX10_1280x4_5120
+            echo GOODIX_INPUT_REGISTER_AND_RETRY=YES
+            echo ANDROID_LOGGER_NV_FILTER_BYPASS=YES
+            echo NAND_ALLOW_PRINTK=REMOVED
+            echo NAND_BLOCK_GUARD=PRESERVED
+            echo BATTERY_V411B=PRESERVED
+            echo HSAD_V410B=PRESERVED
+            echo DISPLAY_RAILS_V412=PRESERVED
+            echo V406_YAFFS64=PRESERVED
+            echo TI_ST=PRESERVED
+            echo KERNELRELEASE=3.0.8-g883717a-dirty
+            echo "ZIMAGE_SIZE=$(cat V413-SIZE.txt)"
+            echo "ZIMAGE_SHA256=$(cut -d' ' -f1 V413-SHA256.txt)"
+          } | tee V413-FINAL-AUDIT.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HWT101-V4.13-FB-TOUCH-LOGCAT
+          include-hidden-files: true
+          path: |
+            HWT101-V4.13-*
+            V413-*.txt
+            V412-*.txt
+            V411B-*.txt
+            V410B-*.txt
+            V405-*.txt
+            V406-*.txt
+            kernel/.config
+            kernel/System.map
+            kernel/vmlinux
+            kernel/drivers/video/k3/k3_fb.h
+            kernel/drivers/video/k3/k3_fb.c
+            kernel/drivers/input/touchscreen/hwt101_goodix.c
+            kernel/drivers/staging/android/logger.c
+            kernel/drivers/mtd/nand/hinand_hwt101.c
+            kernel/arch/arm/mach-k3v2/board-k3v2oem1.c
+            kernel/arch/arm/mach-k3v2/include/mach/board-hi6421-regulator.h
+          if-no-files-found: error
